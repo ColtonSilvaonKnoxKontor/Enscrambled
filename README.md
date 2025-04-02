@@ -1,7 +1,29 @@
 # Enscrambled
 
-This is a simple AES Encryption program intended for distributing copyrighted material without DMCA takedown from companies.
+This is the ransomware version of Enscrambled where it uses AES method. It works on any Linux distribution with required dependencies installed.
 
 # What is This
 
-This encrypts any files (regardless of file size) using simple AES method and injecting file signature to the file so that only this program can decrypt the file.
+This program forces to encrypt all files, including files with restricted permissions. It also delete files automatically if you enter incorrect password.
+
+# Features
+
+Keyboard interrupt blocked (ctrl+z, ctrl+c)
+
+# Work in Progress
+
+Auto-install required dependencies
+
+Bypass all kill signals from *top
+
+Sudo required prompt (IF WE WANT TO INFECT SYSTEM FILES)
+
+Background process
+
+Multi-thread (Not too stress on CPU)
+
+Thread/Process revival
+
+# Where is the source?
+
+This program has the potential to destroy Linux systems so I decided not to upload it.
