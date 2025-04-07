@@ -1,6 +1,6 @@
 # Enscrambled
 
-This is an another AES Encryption program that acts as a ransomware virus in Linux.
+This is a simple AES Encryption program intended for distributing copyrighted material without DMCA takedown from companies.
 
 # What is This?
 
