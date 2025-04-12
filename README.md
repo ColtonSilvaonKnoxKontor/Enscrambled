@@ -6,6 +6,10 @@ This is the ransomware version of Enscrambled where it uses AES method. It works
 
 This program forces to encrypt all files, including files with restricted permissions. It also delete files automatically if you enter incorrect password.
 
+# Status?
+
+Ongoing
+
 # Features
 
 Keyboard interrupt blocked (ctrl+z, ctrl+c)
@@ -24,6 +28,6 @@ Multi-thread (Not too stress on CPU)
 
 Thread/Process revival
 
-# Where is the source?
+# Warning
 
-This program has the potential to destroy Linux systems so I decided not to upload it.
+This program can alter or delete all files without notice; or even worse, it can destroy the entire root files and essential system binaries. I do not have responsibility for any damages you have done.
