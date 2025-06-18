@@ -16,13 +16,12 @@ using `g++`, include `-lcrypto` and `-pthread` flag after `-o`.
 # Features
 
 Keyboard interrupt blocked (ctrl+z, ctrl+c)
+
 Prevents *top software from executing (htop, btop, or any task managers)
 
 # Work in Progress
 
 Auto-install required dependencies
-
-Bypass all kill signals from *top
 
 Sudo required prompt (IF WE WANT TO INFECT SYSTEM FILES)
 
