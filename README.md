@@ -10,6 +10,9 @@ This program forces to encrypt all files, including files with restricted permis
 
 Ongoing
 
+# How to Compile?
+using `g++`, include `-lcrypto` and `-pthread` flag after `-o`.
+
 # Features
 
 Keyboard interrupt blocked (ctrl+z, ctrl+c)
