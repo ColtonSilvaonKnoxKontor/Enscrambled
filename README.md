@@ -25,11 +25,14 @@ Auto-install required dependencies
 
 Sudo required prompt (IF WE WANT TO INFECT SYSTEM FILES)
 
-Background process
+Background process which can detached itself to terminal
 
 Multi-thread (Not too stress on CPU)
 
 Thread/Process revival
+
+Pretend to be a real specific software
+
 
 # Warning
 
