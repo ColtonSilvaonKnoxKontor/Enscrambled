@@ -23,9 +23,11 @@ Prevents *top software from executing (htop, btop, or any task managers)
 
 Auto-install required dependencies
 
-Sudo required prompt (IF WE WANT TO INFECT SYSTEM FILES)
+Sudo required prompt
 
-Background process which can detached itself to terminal
+Block shutdown/reboot signal from executing
+
+Background process which can detach itself to Linux terminal
 
 Multi-thread (Not too stress on CPU)
 
