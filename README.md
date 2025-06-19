@@ -31,6 +31,8 @@ Multi-thread (Not too stress on CPU)
 
 Thread/Process revival
 
+Improve text design
+
 Pretend to be a real specific software
 
 
