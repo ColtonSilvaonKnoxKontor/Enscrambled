@@ -39,6 +39,8 @@ Improve text design
 
 Pretend to be a real specific software
 
+# How to harvest password from binary
+You may use simple text editor to inspect and find the correct password. Most junk password consists of Unicode's UTF-8 character so you must set them to easily find it.
 
 # Warning
 
