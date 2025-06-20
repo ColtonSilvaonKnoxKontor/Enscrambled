@@ -27,7 +27,7 @@ Sudo required prompt
 
 Block shutdown/reboot signal from executing
 
-Background process which can detach itself to Linux terminal
+Can detatch to terminal and can relaunch itself to a new terminal session
 
 Multi-thread (Not too stress on CPU)
 
