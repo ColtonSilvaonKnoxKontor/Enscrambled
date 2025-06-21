@@ -22,10 +22,12 @@ using `g++`, include `-lcrypto` and `-pthread` flag after `-o`.
 - Auto-delete all encrypted files if the user close the terminal
 
 - Required to execute as root user
+  
+- Check and install required dependencies
+
+- Send victim's machine info to host's google Docs Spreadsheet
 
 # Work in Progress
-
-- Auto-install required dependencies
 
 - Block shutdown/reboot signal from executing
 
