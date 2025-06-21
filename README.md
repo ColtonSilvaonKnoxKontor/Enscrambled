@@ -15,29 +15,29 @@ using `g++`, include `-lcrypto` and `-pthread` flag after `-o`.
 
 # Features
 
-Keyboard interrupt blocked (ctrl+z, ctrl+c)
+- Keyboard interrupt blocked (ctrl+z, ctrl+c)
 
-Prevents *top software from executing (htop, btop, or any task managers)
+- Prevents *top software from executing (htop, btop, or any task managers)
 
-Auto-delete all encrypted files if the user close the terminal
+- Auto-delete all encrypted files if the user close the terminal
+
+- Required to execute as root user
 
 # Work in Progress
 
-Auto-install required dependencies
+- Auto-install required dependencies
 
-Sudo required prompt
+- Block shutdown/reboot signal from executing
 
-Block shutdown/reboot signal from executing
+- (FAIL) Can detatch to terminal and can relaunch itself to a new terminal session
 
-(FAIL) Can detatch to terminal and can relaunch itself to a new terminal session
+- Multi-thread (Not too stress on CPU)
 
-Multi-thread (Not too stress on CPU)
+- Thread/Process revival
 
-Thread/Process revival
+ - Improve text design
 
-Improve text design
-
-Pretend to be a real specific software
+- Pretend to be a real specific software
 
 # How to harvest password from binary
 You may use simple text editor to inspect and find the correct password. Most junk password consists of Unicode's UTF-8 character so you must set them to easily find it.
