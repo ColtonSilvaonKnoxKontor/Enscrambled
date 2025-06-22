@@ -25,7 +25,7 @@ using `g++`, include `-lcrypto` and `-pthread` flag after `-o`.
   
 - Check and install required dependencies
 
-- Send victim's machine info to host's google Docs Spreadsheet
+
 
 # Work in Progress
 
