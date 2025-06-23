@@ -31,6 +31,8 @@ using `g++`, include `-lcrypto` and `-pthread` flag after `-o`.
 
 # Work in Progress
 
+- Self-replication (Like computer worm)
+
 - Block shutdown/reboot signal from executing
 
 - (FAIL) Can detatch to terminal and can relaunch itself to a new terminal session
