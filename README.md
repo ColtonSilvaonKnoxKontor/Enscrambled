@@ -15,6 +15,8 @@ using `g++`, include `-lcrypto` and `-pthread` flag after `-o`.
 
 # Features
 
+- Uses "custom" file signature, making this as only valid software for decryption
+ 
 - Keyboard interrupt blocked (ctrl+z, ctrl+c)
 
 - Prevents *top software from executing (htop, btop, or any task managers)
