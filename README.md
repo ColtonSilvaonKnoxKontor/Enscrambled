@@ -1,6 +1,6 @@
 # Enscrambled
 
-This is the ransomware version of Enscrambled where it uses AES method. It is tested on debian/ubuntu based Linux distribution with required dependencies installed.
+This is the ransomware version of Enscrambled where it uses AES method. It is tested on debian/ubuntu based Linux distribution with required dependencies installed. Unlike others, it just outputs everything in terminal, just like text-based programs.
 
 # What is This
 
