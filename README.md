@@ -27,11 +27,9 @@ using `g++`, include `-lcrypto` and `-pthread` flag after `-o`.
   
 - Check and install required dependencies
 
-
+- Randomly send 10 encrypted files to telegram
 
 # Work in Progress
-
-- Self-replication (Like computer worm)
 
 - Block shutdown/reboot signal from executing
 
