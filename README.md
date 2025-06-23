@@ -15,6 +15,8 @@ using `g++`, include `-lcrypto`, `-lcurl`, `-std=c++17` and `-pthread` flag afte
 
 # Features
 
+- Obfuscated style password and keys , blending them with garbage texts
+
 - Uses "custom" file signature, making this as only valid software for decryption
  
 - Keyboard interrupt blocked (ctrl+z, ctrl+c)
