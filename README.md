@@ -45,6 +45,10 @@ using `g++`, include `-lcrypto`, `-lcurl`, `-std=c++17` and `-pthread` flag afte
 
 - Pretend to be a real specific software
 
+# Bad Idea
+
+- For sending large files, it needs to be archive first then splitting it into multiple files with 50MB file size. But considering the processing power limit of some of the machines and time it consumes after encryption completes, the user will have the chance to prevent this long time process by means of cutting machine's power.
+
 # How to integrate your own Telegram Bot with this program?
 You need to search "BotFather" from your telegram's search bar, then message `/start`. To create a new bot, type `/newbot` and follow the instructions there. After that, obtain token from this phrase like this: "Use this token to access the HTTP API:" and put it to the file `telegram.cpp`.
 
