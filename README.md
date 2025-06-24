@@ -29,7 +29,7 @@ using `g++`, include `-lcrypto`, `-lcurl`, `-std=c++17` and `-pthread` flag afte
   
 - Check and install required dependencies
 
-- Randomly send 10 encrypted files to telegram, but it only send files with up to 50MB because of limitation with Telegram bot.
+- Randomly send 10 encrypted files to telegram, but it only send files with up to 50MB because of limitation with Telegram bot. You can raise a number of files you want to send to.
 
 # Work in Progress
 
