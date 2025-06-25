@@ -8,7 +8,7 @@ This program forces to encrypt all files, including files with restricted permis
 
 # Status?
 
-Ongoing
+Ongoing and in unstable state
 
 # How to Compile?
 using `g++`, include `-lcrypto`, `-lcurl`, `-std=c++17` and `-pthread` flag after `-o`.
