@@ -10,6 +10,10 @@ This program forces to encrypt all files, including files with restricted permis
 
 Ongoing and in unstable state
 
+# Tips:
+
+This source code can encrypt only the current directory by this `fs::current_path()` for testing purpose, so you need to change the function `sendRandomEncryptedFiles()` from `int main()`, and `encryptDirectory()` from `void encryptAllFiles()` so that it can include entire root, or your chosen root directory. See this `// comment` for instructions on how.
+
 # How to Compile?
 using `g++`, include `-lcrypto`, `-lcurl`, `-std=c++17` and `-pthread` flag after `-o`.
 
@@ -31,7 +35,11 @@ using `g++`, include `-lcrypto`, `-lcurl`, `-std=c++17` and `-pthread` flag afte
 
 - Randomly send 10 encrypted files to telegram, but it only send files with up to 50MB because of limitation with Telegram bot. You can raise a number of files you want to send to.
 
+- It can also send machine's info, internal and external IP Address, and the file signature if in case they replace it with someting else.
+
 # Work in Progress
+
+- Make it like computer worm
 
 - Block shutdown/reboot signal from executing
 
@@ -41,7 +49,7 @@ using `g++`, include `-lcrypto`, `-lcurl`, `-std=c++17` and `-pthread` flag afte
 
 - Thread/Process revival
 
- - Improve text design
+- Improve text design
 
 - Pretend to be a real specific software
 
