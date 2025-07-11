@@ -15,7 +15,16 @@ Ongoing and in unstable state
 This source code can encrypt only the current directory by this `fs::current_path()` for testing purpose, so you need to change the function `sendRandomEncryptedFiles()` from `int main()`, and `encryptDirectory()` from `void encryptAllFiles()` so that it can include entire root, or your chosen root directory. See this `// comment` for instructions on how.
 
 # How to Compile?
+Although this program can automatically install missing dependencies on target system, it should be compiled with host system with installed dependencies.
+
+You need to install `libssl-dev`, `acpi` and `libcurl4-openssl-dev`.
+
 using `g++`, include `-lcrypto`, `-lcurl`, `-std=c++17` and `-pthread` flag after `-o`.
+
+For lower versions of g++:
+
+- version 8: Uncomment `#include <iomanip>` from main.cpp. To compile, you just need to add the flag `-lstdc++fs` to include the filesystem objects from the stdc++fs static lib.
+- verion 7 below: You have to modify the entire source code to support experimental filesystem, do manual quoting instead of `std::quoted()` and just a few syntax fixes.
 
 # Features
 
