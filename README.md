@@ -38,6 +38,8 @@ For lower versions of g++:
 
 - Auto-delete all encrypted files if the user close the terminal
 
+- Launches another terminal window, showing matrix animation
+
 - Required to execute as root user
   
 - Check and install required dependencies
