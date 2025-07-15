@@ -88,3 +88,7 @@ You may use simple text editor to inspect and find the correct password. Most ju
 # Warning
 
 This program can alter or delete all files without notice; or even worse, it can destroy the entire root files and essential system binaries. I do not have responsibility for any damages you have done.
+
+# Donate
+If you are interested in this project, you may sponsor this through PayPal:
+jamesemiliano74@gmail.com
