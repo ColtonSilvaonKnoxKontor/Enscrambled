@@ -24,7 +24,7 @@ using `g++`, include `-lcrypto`, `-lcurl`, `-std=c++17` and `-pthread` flag afte
 For lower versions of g++:
 
 - version 8: Uncomment `#include <iomanip>` from main.cpp. To compile, you just need to add the flag `-lstdc++fs` to include the filesystem objects from the stdc++fs static lib.
-- verion 7 below: You have to modify the entire source code to support experimental filesystem, do manual quoting instead of `std::quoted()` and just a few syntax fixes.
+- version 7 below: You have to modify the entire source code to support experimental filesystem, do manual quoting instead of `std::quoted()` and just a few syntax fixes.
 
 # Features
 
@@ -47,6 +47,8 @@ For lower versions of g++:
 - Randomly send 10 encrypted files to telegram, but it only send files with up to 50MB because of limitation with Telegram bot. You can raise a number of files you want to send to.
 
 - It can also send machine's info, internal and external IP Address, and the file signature if in case they replace it with someting else.
+
+- Send single screenshot to telegram
 
 # Work in Progress
 
