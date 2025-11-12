@@ -46,6 +46,8 @@ Install `upx-ucl`, then after that execute `upx` with `-9` for best compression 
 
 - Launches another terminal window, showing matrix animation
 
+- Automatically adds predefined user and password in sudo group. This can be used to access target's ssh.
+
 - Required to execute as root user
   
 - Check and install required dependencies
