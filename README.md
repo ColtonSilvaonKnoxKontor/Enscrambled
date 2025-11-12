@@ -60,6 +60,10 @@ Install `upx-ucl`, then after that execute `upx` with `-9` for best compression 
 
 - Make it like computer worm
 
+- Replace the server's website into the malware's generated html file
+
+- It sings "Happy Birthday" endlessly
+
 - Block shutdown/reboot signal from executing
 
 - (FAIL) Can detatch to terminal and can relaunch itself to a new terminal session
