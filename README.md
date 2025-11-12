@@ -26,6 +26,12 @@ For lower versions of g++:
 - version 8: Uncomment `#include <iomanip>` from main.cpp. To compile, you just need to add the flag `-lstdc++fs` to include the filesystem objects from the stdc++fs static lib.
 - version 7 below: You have to modify the entire source code to support experimental filesystem, do manual quoting instead of `std::quoted()` and just a few syntax fixes.
 
+Now some can analyze your code by executing `strings ./enscrambled`, which they can instantly see all of the text strings as obviously a type of malware.
+
+We need to transform the executable file into a "packed" form of executable file in which even the normal computer security analyst cannot read them using `strings`
+
+Install `upx-ucl`, then after that execute `upx` with `-9` for best compression result, `-o` as output binary and then the last should be the source binary.
+
 # Features
 
 - Obfuscated style password and keys , blending them with garbage texts
