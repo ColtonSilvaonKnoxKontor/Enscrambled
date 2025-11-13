@@ -1,4 +1,3 @@
-// htmlgen.cpp
 #include <fstream>
 #include <string>
 #include <iostream>
