@@ -19,7 +19,7 @@ Although this program can automatically install missing dependencies on target s
 
 You need to install `libssl-dev`, `acpi` and `libcurl4-openssl-dev`.
 
-using `g++`, include `-lcrypto`, `-lcurl`, `-std=c++17` and `-pthread` flag after `-o`.
+Execute `make`
 
 For lower versions of g++:
 
@@ -28,7 +28,7 @@ For lower versions of g++:
 
 Now some can analyze your code by executing `strings ./enscrambled`, which they can instantly see all of the text strings as obviously a type of malware.
 
-We need to transform the executable file into a "packed" form of executable file in which even the normal computer security analyst cannot read them using `strings`
+We need to transform the executable file into a "packed" form of executable file in which the inexperienced computer security analyst cannot read them using `strings`
 
 Install `upx-ucl`, then after that execute `upx` with `-9` for best compression result, `-o` as output binary and then the last should be the source binary.
 
@@ -47,8 +47,6 @@ Install `upx-ucl`, then after that execute `upx` with `-9` for best compression 
 - Launches another terminal window, showing matrix animation
 
 - Automatically adds predefined user and password in sudo group. This can be used to access target's ssh.
-
-- Required to execute as root user
   
 - Check and install required dependencies
 
@@ -58,15 +56,19 @@ Install `upx-ucl`, then after that execute `upx` with `-9` for best compression 
 
 - Send single screenshot to telegram
 
-# Work in Progress
-
-- Make it like computer worm
+- Can sing **Happy Birthday** "if the root user can communicate with ALSA" or just beeps.
 
 - Replace the server's website into the malware's generated html file
 
-- It sings "Happy Birthday" endlessly
+- Change contents of motd and issue file into custom generated defined by enscrambled
 
+# Work in Progress
+
+- Make it like computer worm
+  
 - Block shutdown/reboot signal from executing
+
+- Tamper web server (Apache2 or nginx) to point generated "index.html"
 
 - (FAIL) Can detatch to terminal and can relaunch itself to a new terminal session
 
