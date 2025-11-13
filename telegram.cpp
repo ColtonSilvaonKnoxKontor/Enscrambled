@@ -1,7 +1,6 @@
 // Developed by Colton Silva 2025
 // version 1.0
 //
-// Categorized as RANSOMWARE
 //
 // This is a sub-file for selecting limited random files that are encrypted,
 // fetching machine's info, external and internal IP addresses, and file
