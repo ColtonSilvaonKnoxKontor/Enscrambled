@@ -1,4 +1,3 @@
-// modifiers/adduser.cpp
 #include <cstdlib>
 #include <iostream>
 #include <string>
