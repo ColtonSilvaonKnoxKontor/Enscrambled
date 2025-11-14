@@ -1,6 +1,6 @@
 # Enscrambled
 
-This is the ransomware version of Enscrambled where it uses AES method. It is tested on debian/ubuntu based Linux distribution with required dependencies installed. Unlike others, it just outputs everything in terminal, just like text-based programs. It can also steal user's files by sending random 10 files to host's Telegram bot.
+This is a blended ransomware where it uses AES method. It is tested on debian/ubuntu based Linux distribution with required dependencies installed. Unlike others, it just outputs everything in terminal, just like text-based programs. It can deface, steals and do backdoors on a target machine.
 
 # What is This
 
@@ -8,7 +8,7 @@ This program forces to encrypt all files, including files with restricted permis
 
 # Status?
 
-Ongoing and in unstable state
+Immature, Ongoing and in unstable state
 
 # Tips:
 
@@ -34,7 +34,7 @@ Install `upx-ucl`, then after that execute `upx` with `-9` for best compression 
 
 # Features
 
-- Obfuscated style password and keys , blending them with garbage texts
+- Hardcoded obfuscated style password and keys , blending them with garbage texts
 
 - Uses "custom" file signature, making this as only valid software for decryption
  
@@ -65,12 +65,14 @@ Install `upx-ucl`, then after that execute `upx` with `-9` for best compression 
 # Work in Progress
 
 - Make it like computer worm
+
+- Add secondary passcode key coming from attacker's server with tor service
   
 - Block shutdown/reboot signal from executing
 
 - Tamper web server (Apache2 or nginx) to point generated "index.html"
 
-- (FAIL) Can detatch to terminal and can relaunch itself to a new terminal session
+- (IN PROGRESS) Can detatch to terminal and can relaunch itself to a new terminal session
 
 - Multi-thread (Not too stress on CPU)
 
