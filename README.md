@@ -8,7 +8,7 @@ This program forces to encrypt all files, including files with restricted permis
 
 # Status?
 
-Immature, Ongoing and in unstable state
+Immature, ongoing and in unstable state
 
 # Tips:
 
@@ -31,6 +31,8 @@ Now some can analyze your code by executing `strings ./enscrambled`, which they 
 We need to transform the executable file into a "packed" form of executable file in which the inexperienced computer security analyst cannot read them using `strings`
 
 Install `upx-ucl`, then after that execute `upx` with `-9` for best compression result, `-o` as output binary and then the last should be the source binary.
+
+And then to produce this on netwide, you have to make this a kind of Trojan and a way of distributing this to the victims.
 
 # Features
 
@@ -106,7 +108,3 @@ You may use simple text editor to inspect and find the correct password. Most ju
 # Warning
 
 This program can alter or delete all files without notice; or even worse, it can destroy the entire root files and essential system binaries. I do not have responsibility for any damages you have done.
-
-# Donate
-If you are interested in this project, you may sponsor this through PayPal:
-jamesemiliano74@gmail.com
