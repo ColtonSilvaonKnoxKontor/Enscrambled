@@ -1,6 +1,6 @@
 # Enscrambled
 
-This is a blended ransomware where it uses AES method. It is tested on debian/ubuntu based Linux distribution with required dependencies installed. Unlike others, it just outputs everything in terminal, just like text-based programs. It can deface, steals and do backdoors on a target machine.
+This is a blended ransomware where it uses hybrid RSA/AES method. It is tested on debian/ubuntu based Linux distribution with required dependencies installed. Unlike others, it just outputs everything in terminal, just like text-based programs. It can encrypts, deface, steals and do backdoors on a target machine.
 
 # What is This
 
