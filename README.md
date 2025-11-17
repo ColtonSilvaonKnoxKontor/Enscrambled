@@ -1,6 +1,6 @@
 # Enscrambled
 
-This is a blended ransomware where it uses hybrid RSA/AES method. It is tested on debian/ubuntu based Linux distribution with required dependencies installed. Unlike others, it just outputs everything in terminal, just like text-based programs. It can encrypt files, deface server websites, steals and do backdoors on a target machine.
+This is a blended ransomware where it uses AES method and RSA for server authentication. It is tested on debian/ubuntu based Linux distribution with required dependencies installed. Unlike others, it just outputs everything in terminal, just like text-based programs. It can encrypt files, deface server websites, steals and do backdoors on a target machine.
 
 # What is This
 
@@ -119,6 +119,12 @@ Copy paste the Chat ID from like this one `{"id":1234567890,` and put it to `con
 # Limitations with Telegram
 
 For sending large files in telegram, it needs to be archive first then splitting it into multiple files with 50MB file size. But considering the processing power limit of some of the machines and time it consumes after encryption completes, the user will have the chance to prevent this long time process by means of cutting machine's power.
+
+# Is it Effective?
+
+NO. This is not advisable to launch in large scale as analyist can harvest hardcoded password in both binary itself or in RAM. Although secondary password is added, it can be bypassed by not letting that logic being executed before decryption function.
+
+This is a proof of concept type of ransomware with multiple functions. Another variant that I've developing on uses hybrid AES/RSA-4096 method. Decryption of file is being made online and secret key should never be handed on victims.
 
 # Warning
 
