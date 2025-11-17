@@ -70,9 +70,11 @@ And then to produce this on netwide, you have to make this a kind of Trojan and 
 
 - Make it like computer worm
 
+- Add immunity to low-level memory forensics
+
 - RSA encryption for file_map
 
-- Use cloud-based storage service to steal and store large amount of files, without restricting us from telegram's 50MB limit.
+- Use cloud-based storage service on separate process to steal and store large amount of files, without restricting us from telegram's 50MB limit.
 
 - Block most debuggers, analyzers or other forensic tools that can be use for extraction of key, though this is not possible for secondary password verification.
   
@@ -94,7 +96,7 @@ And then to produce this on netwide, you have to make this a kind of Trojan and 
 
 - Anti VM execution (fake cpu instructions)
 
-# Where is the server MF?
+# Where is the server?
 
 For the meantime, I will not include the server binary meant for the hackers (the Attacker). I just need to polish some things to make memory analysis harder for tech-savvy.
 
